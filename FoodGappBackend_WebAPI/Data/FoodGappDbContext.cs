@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using FoodGappBackend_WebAPI.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace FoodGappBackend_WebAPI.Data;
+namespace FoodGappBackend_WebAPI.Models;
 
 public partial class FoodGappDbContext : DbContext
 {
@@ -15,6 +14,20 @@ public partial class FoodGappDbContext : DbContext
         : base(options)
     {
     }
+
+    public virtual DbSet<BodyGoal> BodyGoals { get; set; }
+
+    public virtual DbSet<DailyIntake> DailyIntakes { get; set; }
+
+    public virtual DbSet<Food> Foods { get; set; }
+
+    public virtual DbSet<FoodCategory> FoodCategories { get; set; }
+
+    public virtual DbSet<FoodLog> FoodLogs { get; set; }
+
+    public virtual DbSet<MealPlan> MealPlans { get; set; }
+
+    public virtual DbSet<NutrientLog> NutrientLogs { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
@@ -30,6 +43,93 @@ public partial class FoodGappDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<BodyGoal>(entity =>
+        {
+            entity.ToTable("BodyGoal");
+
+            entity.Property(e => e.BodyGoalDesc).HasMaxLength(100);
+            entity.Property(e => e.BodyGoalName).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<DailyIntake>(entity =>
+        {
+            entity.ToTable("DailyIntake");
+
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
+
+            entity.HasOne(d => d.User).WithMany(p => p.DailyIntakes)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK_DailyIntake_User");
+        });
+
+        modelBuilder.Entity<Food>(entity =>
+        {
+            entity.ToTable("Food");
+
+            entity.Property(e => e.FoodName).HasMaxLength(100);
+
+            entity.HasOne(d => d.FoodCategory).WithMany(p => p.Foods)
+                .HasForeignKey(d => d.FoodCategoryId)
+                .HasConstraintName("FK_Food_FoodCategory");
+        });
+
+        modelBuilder.Entity<FoodCategory>(entity =>
+        {
+            entity.ToTable("FoodCategory");
+
+            entity.Property(e => e.FoodCategoryName).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<FoodLog>(entity =>
+        {
+            entity.ToTable("FoodLog");
+
+            entity.HasOne(d => d.FoodCategory).WithMany(p => p.FoodLogs)
+                .HasForeignKey(d => d.FoodCategoryId)
+                .HasConstraintName("FK_FoodLog_FoodCategory");
+
+            entity.HasOne(d => d.Food).WithMany(p => p.FoodLogs)
+                .HasForeignKey(d => d.FoodId)
+                .HasConstraintName("FK_FoodLog_Food");
+
+            entity.HasOne(d => d.User).WithMany(p => p.FoodLogs)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK_FoodLog_User");
+        });
+
+        modelBuilder.Entity<MealPlan>(entity =>
+        {
+            entity.ToTable("MealPlan");
+
+            entity.Property(e => e.Date).HasColumnType("datetime");
+            entity.Property(e => e.MealType).HasMaxLength(50);
+
+            entity.HasOne(d => d.User).WithMany(p => p.MealPlans)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK_MealPlan_User");
+        });
+
+        modelBuilder.Entity<NutrientLog>(entity =>
+        {
+            entity.ToTable("NutrientLog");
+
+            entity.Property(e => e.Calories).HasMaxLength(50);
+            entity.Property(e => e.Fat).HasMaxLength(50);
+            entity.Property(e => e.Protein).HasMaxLength(50);
+
+            entity.HasOne(d => d.FoodCategory).WithMany(p => p.NutrientLogs)
+                .HasForeignKey(d => d.FoodCategoryId)
+                .HasConstraintName("FK_NutrientLog_FoodCategory");
+
+            entity.HasOne(d => d.Food).WithMany(p => p.NutrientLogs)
+                .HasForeignKey(d => d.FoodId)
+                .HasConstraintName("FK_NutrientLog_Food");
+
+            entity.HasOne(d => d.User).WithMany(p => p.NutrientLogs)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK_NutrientLog_User");
+        });
+
         modelBuilder.Entity<Role>(entity =>
         {
             entity.ToTable("Role");
@@ -48,6 +148,9 @@ public partial class FoodGappDbContext : DbContext
         modelBuilder.Entity<UserInfo>(entity =>
         {
             entity.ToTable("UserInfo");
+
+            entity.Property(e => e.FirstName).HasMaxLength(50);
+            entity.Property(e => e.LastName).HasMaxLength(50);
 
             entity.HasOne(d => d.User).WithMany(p => p.UserInfos)
                 .HasForeignKey(d => d.UserId)
