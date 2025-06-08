@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using FoodGappBackend_WebAPI.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace FoodGappBackend_WebAPI.Models;
+namespace FoodGappBackend_WebAPI.Data;
 
 public partial class FoodGappDbContext : DbContext
 {
@@ -39,7 +40,7 @@ public partial class FoodGappDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseSqlServer("Data Source=DESKTOP-SNA6ESP\\SQLEXPRESS;Initial Catalog=FoodGAppDB;trusted_connection=yes;TrustServerCertificate=True;");
+        => optionsBuilder.UseSqlServer("Server=LAPTOP-CHRFDN1M\\SQLEXPRESS;Database=FoodGAppDB;Trusted_Connection=True;Integrated Security=True;TrustServerCertificate=True");
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

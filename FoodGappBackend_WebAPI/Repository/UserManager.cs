@@ -8,24 +8,30 @@ namespace FoodGappBackend_WebAPI.Repository
         private readonly BaseRepository<User> _userRepo;
         private readonly BaseRepository<Role> _role;
         private readonly BaseRepository<UserRole> _userRole;
+        private readonly BaseRepository<UserInfo> _userInfo;
 
         public UserManager()
         {
             _userRepo = new BaseRepository<User>();
             _role = new BaseRepository<Role>();
             _userRole = new BaseRepository<UserRole>();
+            _userInfo = new BaseRepository<UserInfo>();
         }
 
-        // Get User By UserId
-        /// <summary>
-        /// Get User acc by UserId
-        /// </summary>
-        /// <param name="userId"></param>
-        /// <returns>UserId</returns>
         public User GetUserById(int userId)
         {
             return _userRepo.Get(userId);
-        }  
+        }
+
+        public UserInfo GetUserInfoByUserId(int userId)
+        {
+            return _userInfo._table.Where(ur => ur.UserId == userId).FirstOrDefault();
+        }
+
+        public UserInfo GetUserInfoById(int id)
+        {
+            return _userInfo.Get(id);
+        }
 
         public UserRole GetUsersRoleByUserId(int userId)
         {
@@ -37,25 +43,11 @@ namespace FoodGappBackend_WebAPI.Repository
             return _role._table.Where(r => r.RoleId == roleId).FirstOrDefault();
         }
 
-        // Get User by Email
-        /// <summary>
-        /// Get User account using Email
-        /// </summary>
-        /// <param name="email"></param>
-        /// <returns>True</returns>
         public User GetUserByEmail(string email)
         {
             return _userRepo._table.Where(e => e.Email == email).FirstOrDefault();
         }
 
-        // SignIn user
-        /// <summary>
-        /// Check the Email and Password match from the database
-        /// </summary>
-        /// <param name="email"></param>
-        /// <param name="password"></param>
-        /// <param name="errMsg"></param>
-        /// <returns>Success if matched, and Invalid if its not existed</returns>
         public ErrorCode SignIn(string email, string password, ref string errMsg)
         {
             var userSignIn = GetUserByEmail(email);
@@ -75,14 +67,7 @@ namespace FoodGappBackend_WebAPI.Repository
             return ErrorCode.Success;
         }
 
-        // Create or Register Account
-        /// <summary>
-        /// Create Query to add new user to database
-        /// </summary>
-        /// <param name="u"></param>
-        /// <param name="errMsg"></param>
-        /// <returns>Success if the Email is not already existed</returns>
-        public ErrorCode SignUp(User u, ref string errMsg)
+        public ErrorCode CreateAccount(User u, ref string errMsg)
         {
             if (GetUserByEmail(u.Email) != null)
             {
@@ -95,6 +80,57 @@ namespace FoodGappBackend_WebAPI.Repository
                 return ErrorCode.Error;
             }
 
+            return ErrorCode.Success;
+        }
+
+        public ErrorCode UpdateUser(User u, ref string errMsg)
+        {
+            if (_userRepo.Update(u.UserId, u, out errMsg) != ErrorCode.Success)
+            {
+                return ErrorCode.Error;
+            }
+            return ErrorCode.Success;
+        }
+
+        public ErrorCode DeleteUser(int id, ref string errMsg)
+        {
+            if (_userRepo.Delete(id, out errMsg) != ErrorCode.Success)
+            {
+                return ErrorCode.Error;
+            }
+            return ErrorCode.Success;
+        }
+
+        public ErrorCode CreateUserInfo(UserInfo ui, ref string errMsg)
+        {
+            if (_userInfo.Create(ui, out errMsg) != ErrorCode.Success)
+            {
+                return ErrorCode.Error;
+            }
+
+            return ErrorCode.Success;
+        }
+
+        public ErrorCode UpdateUserInfo(UserInfo u, ref string errMsg)
+        {
+            var currentUserInfo = GetUserInfoByUserId(u.UserId.Value);
+
+            if (currentUserInfo == null)
+            {
+                errMsg = "UserId cannot be null.";
+                return ErrorCode.Error;
+            }
+
+            currentUserInfo.Age = u.Age;
+            currentUserInfo.FirstName = u.FirstName;
+            currentUserInfo.LastName = u.LastName;
+            currentUserInfo.Weight = u.Weight;
+            currentUserInfo.Height = u.Height;
+
+            if (_userInfo.Update(currentUserInfo.UserInfoId, currentUserInfo, out errMsg) != ErrorCode.Success)
+            {
+                return ErrorCode.Error;
+            }
             return ErrorCode.Success;
         }
 
