@@ -11,6 +11,22 @@ public partial class User
 
     public string? Password { get; set; }
 
+    public double? Weight { get; set; }
+
+    public double? Height { get; set; }
+
+    public string? FirstName { get; set; }
+
+    public string? LastName { get; set; }
+
+    public int? BodyGoalId { get; set; }
+
+    public bool? IsActive { get; set; }
+
+    public int? Age { get; set; }
+
+    public virtual BodyGoal? BodyGoal { get; set; }
+
     public virtual ICollection<DailyIntake> DailyIntakes { get; set; } = new List<DailyIntake>();
 
     public virtual ICollection<FoodLog> FoodLogs { get; set; } = new List<FoodLog>();
@@ -18,8 +34,6 @@ public partial class User
     public virtual ICollection<MealPlan> MealPlans { get; set; } = new List<MealPlan>();
 
     public virtual ICollection<NutrientLog> NutrientLogs { get; set; } = new List<NutrientLog>();
-
-    public virtual ICollection<UserInfo> UserInfos { get; set; } = new List<UserInfo>();
 
     public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }

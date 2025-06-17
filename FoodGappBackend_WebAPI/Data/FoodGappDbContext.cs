@@ -34,8 +34,6 @@ public partial class FoodGappDbContext : DbContext
 
     public virtual DbSet<User> Users { get; set; }
 
-    public virtual DbSet<UserInfo> UserInfos { get; set; }
-
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -143,20 +141,14 @@ public partial class FoodGappDbContext : DbContext
             entity.ToTable("User");
 
             entity.Property(e => e.Email).HasMaxLength(100);
-            entity.Property(e => e.Password).HasMaxLength(100);
-        });
-
-        modelBuilder.Entity<UserInfo>(entity =>
-        {
-            entity.ToTable("UserInfo");
-
             entity.Property(e => e.FirstName).HasMaxLength(50);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.LastName).HasMaxLength(50);
+            entity.Property(e => e.Password).HasMaxLength(100);
 
-            entity.HasOne(d => d.User).WithMany(p => p.UserInfos)
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("FK_UserInfo_User");
+            entity.HasOne(d => d.BodyGoal).WithMany(p => p.Users)
+                .HasForeignKey(d => d.BodyGoalId)
+                .HasConstraintName("FK_User_BodyGoal");
         });
 
         modelBuilder.Entity<UserRole>(entity =>

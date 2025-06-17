@@ -8,14 +8,12 @@ namespace FoodGappBackend_WebAPI.Repository
         private readonly BaseRepository<User> _userRepo;
         private readonly BaseRepository<Role> _role;
         private readonly BaseRepository<UserRole> _userRole;
-        private readonly BaseRepository<UserInfo> _userInfo;
 
         public UserManager()
         {
             _userRepo = new BaseRepository<User>();
             _role = new BaseRepository<Role>();
             _userRole = new BaseRepository<UserRole>();
-            _userInfo = new BaseRepository<UserInfo>();
         }
 
         public User GetUserById(int userId)
@@ -23,47 +21,50 @@ namespace FoodGappBackend_WebAPI.Repository
             return _userRepo.Get(userId);
         }
 
-        public UserInfo GetUserInfoByUserId(int userId)
+        // Replaces GetUserInfoByUserId
+        public User GetUserByUserId(int userId)
         {
-            return _userInfo._table.Where(ur => ur.UserId == userId).FirstOrDefault();
+            return _userRepo._table.FirstOrDefault(u => u.UserId == userId);
         }
 
-        public UserInfo GetUserInfoById(int id)
+        // Replaces GetUserInfoById
+        public User GetUserByIdAlt(int id)
         {
-            return _userInfo.Get(id);
+            return _userRepo.Get(id);
         }
 
         public UserRole GetUsersRoleByUserId(int userId)
         {
-            return _userRole._table.Where(ur => ur.UserId == userId).FirstOrDefault();
+            return _userRole._table.FirstOrDefault(ur => ur.UserId == userId);
         }
 
         public Role GetRoleNameByRoleId(int? roleId)
         {
-            return _role._table.Where(r => r.RoleId == roleId).FirstOrDefault();
+            return _role._table.FirstOrDefault(r => r.RoleId == roleId);
         }
 
         public User GetUserByEmail(string email)
         {
-            return _userRepo._table.Where(e => e.Email == email).FirstOrDefault();
+            return _userRepo._table.FirstOrDefault(e => e.Email == email);
         }
 
         public ErrorCode SignIn(string email, string password, ref string errMsg)
         {
             var userSignIn = GetUserByEmail(email);
-            if (userSignIn == null)
+            if (userSignIn == null || userSignIn.IsActive == false)
+            {
+                errMsg = "User not found or deactivated.";
+                return ErrorCode.Error;
+            }
+
+            // Use BCrypt to verify the password
+            if (!BCrypt.Net.BCrypt.Verify(password, userSignIn.Password))
             {
                 errMsg = "Invalid username or password.";
                 return ErrorCode.Error;
             }
 
-            if (!userSignIn.Password.Equals(password))
-            {
-                errMsg = "Invalid username or password.";
-                return ErrorCode.Error;
-            }
-
-            errMsg = "Login Successfulss";
+            errMsg = "Login Successful";
             return ErrorCode.Success;
         }
 
@@ -74,6 +75,9 @@ namespace FoodGappBackend_WebAPI.Repository
                 errMsg = "Username Already Exist";
                 return ErrorCode.Error;
             }
+
+            // Hash the password before saving
+            u.Password = BCrypt.Net.BCrypt.HashPassword(u.Password);
 
             if (_userRepo.Create(u, out errMsg) != ErrorCode.Success)
             {
@@ -101,38 +105,37 @@ namespace FoodGappBackend_WebAPI.Repository
             return ErrorCode.Success;
         }
 
-        public ErrorCode CreateUserInfo(UserInfo ui, ref string errMsg)
+        // Replaces CreateUserInfo
+        public ErrorCode CreateOrUpdateUser(User u, ref string errMsg)
         {
-            if (_userInfo.Create(ui, out errMsg) != ErrorCode.Success)
+            var existingUser = GetUserById(u.UserId);
+            if (existingUser == null)
             {
-                return ErrorCode.Error;
+                // Create new user
+                if (_userRepo.Create(u, out errMsg) != ErrorCode.Success)
+                {
+                    return ErrorCode.Error;
+                }
             }
+            else
+            {
+                // Update existing user
+                existingUser.Age = u.Age;
+                existingUser.FirstName = u.FirstName;
+                existingUser.LastName = u.LastName;
+                existingUser.Weight = u.Weight;
+                existingUser.Height = u.Height;
+                existingUser.Email = u.Email;
+                existingUser.Password = u.Password;
+                existingUser.BodyGoalId = u.BodyGoalId;
+                existingUser.IsActive = u.IsActive;
 
+                if (_userRepo.Update(existingUser.UserId, existingUser, out errMsg) != ErrorCode.Success)
+                {
+                    return ErrorCode.Error;
+                }
+            }
             return ErrorCode.Success;
         }
-
-        public ErrorCode UpdateUserInfo(UserInfo u, ref string errMsg)
-        {
-            var currentUserInfo = GetUserInfoByUserId(u.UserId.Value);
-
-            if (currentUserInfo == null)
-            {
-                errMsg = "UserId cannot be null.";
-                return ErrorCode.Error;
-            }
-
-            currentUserInfo.Age = u.Age;
-            currentUserInfo.FirstName = u.FirstName;
-            currentUserInfo.LastName = u.LastName;
-            currentUserInfo.Weight = u.Weight;
-            currentUserInfo.Height = u.Height;
-
-            if (_userInfo.Update(currentUserInfo.UserInfoId, currentUserInfo, out errMsg) != ErrorCode.Success)
-            {
-                return ErrorCode.Error;
-            }
-            return ErrorCode.Success;
-        }
-
     }
 }

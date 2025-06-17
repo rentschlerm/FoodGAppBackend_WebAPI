@@ -11,8 +11,6 @@ public partial class Food
 
     public int? FoodCategoryId { get; set; }
 
-    public double? Weight { get; set; }
-
     public virtual FoodCategory? FoodCategory { get; set; }
 
     public virtual ICollection<FoodLog> FoodLogs { get; set; } = new List<FoodLog>();

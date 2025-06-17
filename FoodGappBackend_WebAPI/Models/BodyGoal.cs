@@ -10,4 +10,6 @@ public partial class BodyGoal
     public string? BodyGoalName { get; set; }
 
     public string? BodyGoalDesc { get; set; }
+
+    public virtual ICollection<User> Users { get; set; } = new List<User>();
 }
