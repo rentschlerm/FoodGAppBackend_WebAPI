@@ -76,6 +76,13 @@ namespace FoodGappBackend_WebAPI.Repository
                 return ErrorCode.Error;
             }
 
+            // Hotfix: Check for null or empty password before hashing
+            if (string.IsNullOrWhiteSpace(u.Password))
+            {
+                errMsg = "Password cannot be empty.";
+                return ErrorCode.Error;
+            }
+
             // Hash the password before saving
             u.Password = BCrypt.Net.BCrypt.HashPassword(u.Password);
 
