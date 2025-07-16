@@ -13,7 +13,5 @@ public partial class DailyIntake
 
     public DateTime? UpdatedAt { get; set; }
 
-    public int? WaterIntake { get; set; }
-
     public virtual User? User { get; set; }
 }

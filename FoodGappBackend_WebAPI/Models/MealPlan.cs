@@ -15,13 +15,9 @@ public partial class MealPlan
 
     public string? Recipe { get; set; }
 
-    public string? Ingredients { get; set; }
-
     public int? NutrientLogId { get; set; }
 
     public string? MicroNutrients { get; set; }
-
-    public string? ShoppingList { get; set; }
 
     public string? AlertNotes { get; set; }
 

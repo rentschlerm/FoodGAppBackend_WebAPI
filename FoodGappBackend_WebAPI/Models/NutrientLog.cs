@@ -21,8 +21,6 @@ public partial class NutrientLog
 
     public double? FoodGramAmount { get; set; }
 
-    public double? FoodMlAmount { get; set; }
-
     public virtual Food? Food { get; set; }
 
     public virtual FoodCategory? FoodCategory { get; set; }
