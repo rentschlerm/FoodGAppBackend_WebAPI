@@ -169,6 +169,7 @@ namespace FoodGappBackend_WebAPI.Controllers
                     Calories = request.Calories ?? "0",
                     Protein = request.Protein ?? "0",
                     Fat = request.Fat ?? "0",
+                    Carbs = request.Carbs ?? "0", // <-- Add this
                     FoodGramAmount = request.Grams
                 };
 
@@ -341,6 +342,7 @@ namespace FoodGappBackend_WebAPI.Controllers
         public string FoodName { get; set; }
         public double Grams { get; set; }
         public string? MealType { get; set; }
+        public string? Carbs { get; set; } // <-- Add this
     }
 
     public class UpdateNutrientRequest
@@ -358,5 +360,6 @@ namespace FoodGappBackend_WebAPI.Controllers
         public string? Protein { get; set; }
         public string? Fat { get; set; }
         public string? MealType { get; set; }
+        public string? Carbs { get; set; } // <-- Add this
     }
 }

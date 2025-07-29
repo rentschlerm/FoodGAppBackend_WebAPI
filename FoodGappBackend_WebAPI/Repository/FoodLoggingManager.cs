@@ -8,10 +8,12 @@ namespace FoodGappBackend_WebAPI.Repository
     public class FoodLoggingManager
     {
         private readonly BaseRepository<FoodLog> _foodLogRepo;
+        private readonly BaseRepository<NutrientLog> _nutrientLogRepo;
 
         public FoodLoggingManager()
         {
             _foodLogRepo = new BaseRepository<FoodLog>();
+            _nutrientLogRepo = new BaseRepository<NutrientLog>();
         }
 
         public FoodLog GetFoodLogById(int foodLogId)
@@ -31,6 +33,18 @@ namespace FoodGappBackend_WebAPI.Repository
                 return ErrorCode.Error;
             }
             return ErrorCode.Success;
+        }
+
+        // New: Get carbs for a FoodLog by its ID
+        public string? GetCarbsForFoodLog(int foodLogId)
+        {
+            var foodLog = _foodLogRepo.Get(foodLogId);
+            if (foodLog?.NutrientLogId != null)
+            {
+                var nutrientLog = _nutrientLogRepo.Get(foodLog.NutrientLogId.Value);
+                return nutrientLog?.Carbs;
+            }
+            return null;
         }
     }
 }
