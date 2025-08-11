@@ -47,23 +47,20 @@ namespace FoodGappBackend_WebAPI.Controllers
                 request.Grams <= 0)
                 return BadRequest(new { error = "Invalid request data. Food name, user ID, and grams are required" });
 
-            // Map meal type to category ID
             int? foodCategoryId = request.MealType?.ToLower() switch
             {
                 "breakfast" => 1,
                 "lunch" => 2,
                 "dinner" => 3,
-                _ => 1 // Default to breakfast
+                _ => 1
             };
 
-            // Check if food exists, if not create it
             var existingFood = _foodRepo.GetAll()
                 .FirstOrDefault(f => f.FoodName.ToLower() == request.FoodName.ToLower());
 
             Food food;
             if (existingFood == null)
             {
-                // Create new food entry
                 food = new Food
                 {
                     FoodName = request.FoodName,
@@ -103,6 +100,14 @@ namespace FoodGappBackend_WebAPI.Controllers
             if (_foodLogRepo.Create(foodLog, out ErrorMessage) != ErrorCode.Success)
                 return BadRequest(new { error = "Failed to create food log", details = ErrorMessage });
 
+            // Award XP for food log
+            var user = _userMgr.GetUserById(request.UserId);
+            if (user != null)
+            {
+                _userMgr.AddExperience(user, 25);
+                _userMgr.UpdateUser(user, ref ErrorMessage);
+            }
+
             return Ok(new
             {
                 message = "Food logged successfully",
@@ -129,23 +134,20 @@ namespace FoodGappBackend_WebAPI.Controllers
                 if (string.IsNullOrWhiteSpace(request.FoodName) || request.Grams <= 0)
                     return BadRequest(new { error = "Invalid request data. Food name and grams are required" });
 
-                // Map meal type to category ID
                 int? foodCategoryId = request.MealType?.ToLower() switch
                 {
                     "breakfast" => 1,
                     "lunch" => 2,
                     "dinner" => 3,
-                    _ => 1 // Default to breakfast
+                    _ => 1
                 };
 
-                // Check if food exists, if not create it
                 var existingFood = _foodRepo.GetAll()
                     .FirstOrDefault(f => f.FoodName.ToLower() == request.FoodName.ToLower());
 
                 Food food;
                 if (existingFood == null)
                 {
-                    // Create new food entry
                     food = new Food
                     {
                         FoodName = request.FoodName,
@@ -160,7 +162,6 @@ namespace FoodGappBackend_WebAPI.Controllers
                     food = existingFood;
                 }
 
-                // Create nutrient log with scanned data
                 var nutrientLog = new NutrientLog
                 {
                     UserId = UserId,
@@ -169,14 +170,13 @@ namespace FoodGappBackend_WebAPI.Controllers
                     Calories = request.Calories ?? "0",
                     Protein = request.Protein ?? "0",
                     Fat = request.Fat ?? "0",
-                    Carbs = request.Carbs ?? "0", // <-- Add this
+                    Carbs = request.Carbs ?? "0",
                     FoodGramAmount = request.Grams
                 };
 
                 if (_nutrientLogRepo.Create(nutrientLog, out ErrorMessage) != ErrorCode.Success)
                     return BadRequest(new { error = "Failed to create nutrient log", details = ErrorMessage });
 
-                // Create food log entry
                 var foodLog = new FoodLog
                 {
                     UserId = UserId,
@@ -187,6 +187,14 @@ namespace FoodGappBackend_WebAPI.Controllers
 
                 if (_foodLogRepo.Create(foodLog, out ErrorMessage) != ErrorCode.Success)
                     return BadRequest(new { error = "Failed to create food log", details = ErrorMessage });
+
+                // Award XP for scan
+                var user = _userMgr.GetUserById(UserId);
+                if (user != null)
+                {
+                    _userMgr.AddExperience(user, 25);
+                    _userMgr.UpdateUser(user, ref ErrorMessage);
+                }
 
                 return Ok(new
                 {
@@ -333,6 +341,26 @@ namespace FoodGappBackend_WebAPI.Controllers
             };
 
             return Ok(summary);
+        }
+        public void AddExperience(User user, int exp)
+        {
+            if (user.UserLevel == null || user.UserLevel < 1)
+                user.UserLevel = 1;
+            if (user.UserCurrentExperience == null)
+                user.UserCurrentExperience = 0;
+
+            user.UserCurrentExperience += exp;
+
+            while (user.UserCurrentExperience >= 100)
+            {
+                user.UserCurrentExperience -= 100;
+                user.UserLevel += 1;
+            }
+        }
+
+        public int GetExperienceToNextLevel(User user)
+        {
+            return 100;
         }
     }
 

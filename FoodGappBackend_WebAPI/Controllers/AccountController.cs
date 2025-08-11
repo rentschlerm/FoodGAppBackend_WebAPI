@@ -79,6 +79,10 @@ namespace FoodGappBackend_WebAPI.Controllers
         {
             try
             {
+                // Ensure default level and experience
+                user.UserLevel ??= 1;
+                user.UserCurrentExperience ??= 0;
+
                 if (_userMgr.CreateAccount(user, ref ErrorMessage) == ErrorCode.Success)
                 {
                     var role = _roleRepo.GetAll().FirstOrDefault(r => r.RoleName == "User");
@@ -202,6 +206,8 @@ namespace FoodGappBackend_WebAPI.Controllers
             }
 
             user.UserId = UserId;
+            user.UserLevel ??= 1;
+            user.UserCurrentExperience ??= 0;
 
             if (_userMgr.CreateAccount(user, ref ErrorMessage) != ErrorCode.Success)
             {
@@ -215,9 +221,10 @@ namespace FoodGappBackend_WebAPI.Controllers
         {
             var user = _userMgr.GetUserById(userId);
             if (user == null)
-            {
                 return NotFound(new { error = "User not found" });
-            }
+
+            int userLevel = user.UserLevel ?? 1;
+            int userCurrentExperience = user.UserCurrentExperience ?? 0;
 
             return Ok(new
             {
@@ -227,8 +234,55 @@ namespace FoodGappBackend_WebAPI.Controllers
                 age = user.Age,
                 weight = user.Weight,
                 height = user.Height,
-                bodyGoalId = user.BodyGoalId
+                bodyGoalId = user.BodyGoalId,
+                userLevel,
+                userCurrentExperience,
+                experienceToNextLevel = _userMgr.GetExperienceToNextLevel(user)
             });
         }
+        [HttpPost("add-experience")]
+        public IActionResult AddExperience([FromBody] AddExperienceRequest request)
+        {
+            var user = _userMgr.GetUserById(request.UserId);
+            if (user == null)
+                return NotFound();
+
+            _userMgr.AddExperience(user, request.Experience);
+            var result = _userMgr.UpdateUser(user, ref ErrorMessage);
+
+            if (result != ErrorCode.Success)
+                return BadRequest(new { error = ErrorMessage });
+
+            return Ok(new
+            {
+                userId = user.UserId,
+                userLevel = user.UserLevel,
+                userCurrentExperience = user.UserCurrentExperience,
+                experienceToNextLevel = _userMgr.GetExperienceToNextLevel(user)
+            });
+        }
+
+        [HttpGet("user-level/{userId}")]
+        public IActionResult GetUserLevel(int userId)
+        {
+            var user = _userMgr.GetUserById(userId);
+            if (user == null)
+                return NotFound();
+
+            return Ok(new
+            {
+                level = user.UserLevel ?? 1,
+                currentXP = user.UserCurrentExperience ?? 0,
+                requiredXP = _userMgr.GetExperienceToNextLevel(user),
+                title = $"Level {user.UserLevel ?? 1}",
+                badge = "" // optional, you can add logic for badges here
+            });
+        }
+    }
+
+    public class AddExperienceRequest
+    {
+        public int UserId { get; set; }
+        public int Experience { get; set; }
     }
 }

@@ -25,6 +25,10 @@ public partial class User
 
     public int? Age { get; set; }
 
+    public int? UserCurrentExperience { get; set; }
+
+    public int? UserLevel { get; set; }
+
     public virtual BodyGoal? BodyGoal { get; set; }
 
     public virtual ICollection<DailyIntake> DailyIntakes { get; set; } = new List<DailyIntake>();

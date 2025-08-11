@@ -1,5 +1,6 @@
 ﻿using FoodGappBackend_WebAPI.Models;
 using static FoodGappBackend_WebAPI.Utils.Utilities;
+using System.Linq;
 
 namespace FoodGappBackend_WebAPI.Repository
 {
@@ -21,13 +22,11 @@ namespace FoodGappBackend_WebAPI.Repository
             return _userRepo.Get(userId);
         }
 
-        // Replaces GetUserInfoByUserId
         public User GetUserByUserId(int userId)
         {
             return _userRepo._table.FirstOrDefault(u => u.UserId == userId);
         }
 
-        // Replaces GetUserInfoById
         public User GetUserByIdAlt(int id)
         {
             return _userRepo.Get(id);
@@ -76,14 +75,12 @@ namespace FoodGappBackend_WebAPI.Repository
                 return ErrorCode.Error;
             }
 
-            // Hotfix: Check for null or empty password before hashing
             if (string.IsNullOrWhiteSpace(u.Password))
             {
                 errMsg = "Password cannot be empty.";
                 return ErrorCode.Error;
             }
 
-            // Hash the password before saving
             u.Password = BCrypt.Net.BCrypt.HashPassword(u.Password);
 
             if (_userRepo.Create(u, out errMsg) != ErrorCode.Success)
@@ -112,13 +109,11 @@ namespace FoodGappBackend_WebAPI.Repository
             return ErrorCode.Success;
         }
 
-        // Replaces CreateUserInfo
         public ErrorCode CreateOrUpdateUser(User u, ref string errMsg)
         {
             var existingUser = GetUserById(u.UserId);
             if (existingUser == null)
             {
-                // Create new user
                 if (_userRepo.Create(u, out errMsg) != ErrorCode.Success)
                 {
                     return ErrorCode.Error;
@@ -126,7 +121,6 @@ namespace FoodGappBackend_WebAPI.Repository
             }
             else
             {
-                // Update existing user
                 existingUser.Age = u.Age;
                 existingUser.FirstName = u.FirstName;
                 existingUser.LastName = u.LastName;
@@ -143,6 +137,28 @@ namespace FoodGappBackend_WebAPI.Repository
                 }
             }
             return ErrorCode.Success;
+        }
+
+        // XP/Leveling logic
+        public void AddExperience(User user, int exp)
+        {
+            if (user.UserLevel == null || user.UserLevel < 1)
+                user.UserLevel = 1;
+            if (user.UserCurrentExperience == null)
+                user.UserCurrentExperience = 0;
+
+            user.UserCurrentExperience += exp;
+
+            while (user.UserCurrentExperience >= 100)
+            {
+                user.UserCurrentExperience -= 100;
+                user.UserLevel += 1;
+            }
+        }
+
+        public int GetExperienceToNextLevel(User user)
+        {
+            return (user.UserLevel ?? 1) * 100;
         }
     }
 }
