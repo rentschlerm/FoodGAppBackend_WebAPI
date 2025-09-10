@@ -1,31 +1,42 @@
-Food,Portion(g),CHO(g),PRO(g),FAT(g),Energy(kcal),Category
-Ampalaya,100,3,1,0,16,Vegetable
-Kangkong,100,3,1,0,16,Vegetable
-Pinakbet,100,5,2,1,35,Vegetable
-Apple,185,10,0,0,40,Fruit
-Mango,120,10,0,0,40,Fruit
-Banana (Latundan),80,10,0,0,40,Fruit
-Milk (Whole),240,12,8,10,170,Milk_Whole
-Milk (Low-fat),240,12,8,5,125,Milk_LowFat
-Milk (Non-fat),240,12,8,0,80,Milk_NonFat
-Rice (White cooked),50,23,0,0,92,Rice_A
-Rice (Brown cooked),50,23,2,0,100,Rice_B
-Rice (Sticky cooked),50,23,4,0,108,Rice_C
-Chicken (Lean),45,0,8,1,41,Meat_LowFat
-Pork (Lean),45,0,8,6,86,Meat_MediumFat
-Adobo (Pork),100,0,15,20,250,Meat_HighFat
-Beef (Fatty),45,0,8,10,122,Meat_HighFat
-Butter,5,0,0,5,45,Fat
-Oil (Coconut),5,0,0,5,45,Fat
-Sugar (White),5,5,0,0,20,Sugar
-Honey,5,5,0,0,20,Sugar
-Egg (Boiled),50,0,6,5,75,Egg
-Lumpia (Fried),100,15,5,10,180,Fried_Food
-Mongo,45,23,7,0,110,Vegetable
-Taho,200,10,2,0,48,Dessert
-Sago’t Gulaman,200,15,0,0,60,Dessert
-Fish (Bangus),45,0,8,1,41,Seafood
-Shrimp,45,0,8,1,41,Seafood
-Tinola (Chicken),200,5,10,5,105,Soup
-Pancit Canton,100,20,5,5,145,Noodles
-Bread (Pandesal),25,10,2,0,48,Bread
+FoodId,FoodGramAmount,Carbs,Protein,Fat,Calories,FoodCategoryId,Source
+Ampalaya,100,3,1,0,16,Vegetable,FEL
+Kangkong,100,3,1,0,16,Vegetable,FEL
+Pinakbet,100,5,2,1,33,Vegetable,FEL
+Apple,185,10,0,0,40,Fruit,FEL
+Mango,120,10,0,0,40,Fruit,FEL
+Banana (Latundan),80,10,0,0,40,Fruit,FEL
+Milk (Whole),240,12,8,10,164,Milk_Whole,FEL
+Milk (Low-fat),240,12,8,5,116,Milk_LowFat,FEL
+Milk (Non-fat),240,12,8,0,80,Milk_NonFat,FEL
+Rice (White cooked),50,23,0,0,92,Rice_A,FEL
+Rice (Brown cooked),50,23,2,0,100,Rice_B,FEL
+Rice (Sticky cooked),50,23,4,0,108,Rice_C,FEL
+Chicken (Lean),45,0,8,1,36,Meat_LowFat,FEL
+Chicken (Fried),100,9.5,13.1,17.9,253,Meat_HighFat,FEL
+Pork (Lean),45,0,8,6,72,Meat_MediumFat,FEL
+Adobo (Pork),100,0,15,20,240,Meat_HighFat,FEL
+Adobo (Chicken),100,1,16,12,193,Meat_MediumFat,FEL
+Beef (Fatty),45,0,8,10,116,Meat_HighFat,FEL
+Butter,5,0,0,5,45,Fat,FEL
+Oil (Coconut),5,0,0,5,45,Fat,FEL
+Sugar (White),5,5,0,0,20,Sugar,FEL
+Honey,5,5,0,0,20,Sugar,FEL
+Egg (Boiled),50,0,6,5,69,Egg,FEL
+Egg (Scrambled),60,1,7,6,85,Egg,FEL
+Lumpia (Fried),100,15,5,10,155,Fried_Food,FEL
+Mongo (Boiled),45,23,7,0,115,Vegetable,FEL
+Taho,200,10,2,0,48,Dessert,FEL
+Sago’t Gulaman,200,15,0,0,60,Dessert,FEL
+Fish (Bangus),45,0,8,1,36,Seafood,FEL
+Shrimp,45,0,8,1,36,Seafood,FEL
+Tinola (Chicken),200,5,10,5,95,Soup,FEL
+Sinigang (Pork),200,7,12,8,143,Soup,FEL
+Pancit Canton,100,20,5,5,145,Noodles,FEL
+Pancit Bihon,100,22,6,3,136,Noodles,FEL
+Bread (Pandesal),25,10,2,0,44,Bread,FEL
+Bread (Loaf White),30,15,3,2,77,Bread,FEL
+Halo-Halo,250,40,5,10,270,Dessert,FEL
+Lechon (Roast Pork),100,0,20,25,305,Meat_HighFat,FEL
+Longganisa (Fried),50,2,8,15,171,Meat_HighFat,FEL
+Hotdog (Fried),50,3,6,14,153,Meat_HighFat,FEL
+Pork Adobo (Nutritionist),160,2.7,17.9,8.9,163,Meat_MediumFat,FEL

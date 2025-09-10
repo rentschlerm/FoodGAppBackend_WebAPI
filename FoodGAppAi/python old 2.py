@@ -5,13 +5,13 @@ from datetime import datetime
 from functools import lru_cache
 import re
 import difflib
-import google.generativeai as genai
+
 import pandas as pd
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
-import mimetypes
+
 load_dotenv()
 
 # -------------------------------------------------------------------
@@ -28,11 +28,11 @@ log = logging.getLogger("meal-backend")
 # -------------------------------------------------------------------
 USDA_API_KEY = os.getenv("USDA_API_KEY")
 API_NINJAS_KEY = os.getenv("API_NINJAS_KEY")
-genai.configure(api_key=os.getenv("GEMINI_SECRET_KEY"))
+
 if not USDA_API_KEY:
-    log.error("USDA_API_KEY not set (USDA lookup disabled)")
+    log.warning("USDA_API_KEY not set (USDA lookup disabled)")
 if not API_NINJAS_KEY:
-    log.error("API_NINJAS_KEY not set (API Ninjas lookup disabled)")
+    log.warning("API_NINJAS_KEY not set (API Ninjas lookup disabled)")
 
 # -------------------------------------------------------------------
 # Flask
@@ -46,7 +46,6 @@ DEFAULT_PORT = int(os.getenv("PORT", "5000"))
 # -------------------------------------------------------------------
 # URLs for external APIs
 # -------------------------------------------------------------------
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 USDA_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 NINJAS_URL = "https://api.api-ninjas.com/v1/nutrition"
 
@@ -93,20 +92,24 @@ def load_dataset(path: str):
         df["Food"] = df["Food_raw"].apply(normalize_text)
 
         # Portion
-        portion_col = cols.get("foodgramamount")
+        portion_col = None
+        for cand in ("Portion(g)", "Portion_g", "portion(g)", "portion_g", "portion"):
+            if cand in df.columns:
+                portion_col = cand
+                break
         df["Portion(g)"] = df[portion_col].apply(lambda v: safe_float(v, 100)) if portion_col else 100.0
 
         # Nutrient columns
         def find_col(cands):
             for c in cands:
-                if c in cols:
-                    return cols[c]
+                if c in df.columns:
+                    return c
             return None
 
-        cho_col = find_col(["carbs"])
-        pro_col = find_col(["protein"])
-        fat_col = find_col(["fat"])
-        energy_col = find_col(["calories"])
+        cho_col = find_col(["CHO(g)", "CHO_g", "CHO", "cho(g)", "carbs", "carbohydrate", "carbohydrates"])
+        pro_col = find_col(["PRO(g)", "PRO_g", "PRO", "pro(g)", "protein"])
+        fat_col = find_col(["FAT(g)", "FAT_g", "FAT", "fat", "total fat"])
+        energy_col = find_col(["Energy(kcal)", "Energy_kcal", "energy(kcal)", "energy", "calories"])
 
         df["CHO(g)"] = df[cho_col].apply(lambda v: safe_float(v, 0)) if cho_col else 0.0
         df["PRO(g)"] = df[pro_col].apply(lambda v: safe_float(v, 0)) if pro_col else 0.0
@@ -114,12 +117,8 @@ def load_dataset(path: str):
         df["Energy(kcal)"] = df[energy_col].apply(lambda v: safe_float(v, 0)) if energy_col else 0.0
 
         # Category
-        cat_col = find_col(["foodcategoryid"])
+        cat_col = find_col(["Category", "category"])
         df["Category"] = df[cat_col].astype(str) if cat_col else "Unknown"
-
-        # Source
-        src_col = find_col(["source"])
-        df["Source"] = df[src_col].astype(str) if src_col else "FEL"
 
         log.info("Loaded FEL dataset rows=%d", len(df))
         return df
@@ -142,11 +141,11 @@ def lookup_fel(food: str):
         log.warning("No FEL match found for %s", food_norm)
         return None
     return {
-        "Protein": float(match_row.get("PRO(g)", 0)),
-        "Fat": float(match_row.get("FAT(g)", 0)),
-        "Carbs": float(match_row.get("CHO(g)", 0)),
-        "Calories": float(match_row.get("Energy(kcal)", 0)),
-        "Portion": float(match_row.get("Portion(g)", 100)),
+        "protein": float(match_row.get("PRO(g)", 0)),
+        "fat": float(match_row.get("FAT(g)", 0)),
+        "carbs": float(match_row.get("CHO(g)", 0)),
+        "calories": float(match_row.get("Energy(kcal)", 0)),
+        "portion": float(match_row.get("Portion(g)", 100)),
         "lookup_path": lookup_path
     }
 
@@ -295,95 +294,6 @@ def external_fallback(food_name: str, grams: float):
 
 
 # -------------------------------------------------------------------
-# Unified lookup
-# -------------------------------------------------------------------
-def unified_lookup(food: str, grams: float):
-    food_norm = normalize_text(food)
-    sources = []
-
-    # 1. FEL lookup
-    fel_data = lookup_fel(food_norm)
-    if fel_data and any([fel_data["Protein"], fel_data["Fat"], fel_data["Carbs"]]):
-        sources.append(fel_data["lookup_path"])
-        portion = fel_data.get("Portion", 100) or 100
-        scale = grams / portion
-        base = {
-            "Protein": fel_data["Protein"],
-            "Fat": fel_data["Fat"],
-            "Carbs": fel_data["Carbs"],
-            "Calories": fel_data["Calories"]
-        }
-    else:
-        # 2. USDA lookup
-        usda_data = lookup_usda(food_norm, grams)
-        if usda_data:
-            sources.append("USDA")
-            base = usda_data
-        else:
-            # 3. API Ninjas lookup
-            nin_data = lookup_api_ninjas(food_norm, grams)
-            if nin_data:
-                sources.append("API_Ninjas")
-                base = nin_data
-            else:
-                sources.append("None")
-                base = {"Protein": 0, "Fat": 0, "Carbs": 0, "Calories": 0}
-
-    # Compute calories with Atwater if missing or zero
-    if base["Calories"] <= 0:
-        base["Calories"] = calculate_atwater_kcal(base["Protein"], base["Fat"], base["Carbs"])
-        sources.append("Atwater")
-
-    # For FEL, scale nutrients (already scaled for external APIs)
-    if "FEL" in sources[0]:
-        scale = grams / 100.0
-        base["Protein"] = round(base["Protein"] * scale, 2)
-        base["Fat"] = round(base["Fat"] * scale, 2)
-        base["Carbs"] = round(base["Carbs"] * scale, 2)
-        base["Calories"] = round(base["Calories"] * scale, 2)
-
-    result = {
-        "NutrientLogId": str(uuid.uuid4()),
-        "FoodId": food_norm,
-        "FoodCategoryId": "Unknown",
-        "Calories": base["Calories"],
-        "Protein": base["Protein"],
-        "Fat": base["Fat"],
-        "Carbs": base["Carbs"],
-        "UserId": "Unknown",
-        "FoodGramAmount": float(grams),
-        "Source": "+".join(sources),
-        "LookupPath": sources[0] if sources else "None"
-    }
-
-    # Cache external results
-    if "FEL" not in sources[0]:
-        store_cache(food, grams, result)
-
-    return result
-
-
-# -------------------------------------------------------------------
-# Scale row function
-# -------------------------------------------------------------------
-def scale_row(row, grams=100.0):
-    portion = safe_float(row.get("Portion(g)", 100), 100)
-    factor = grams / portion
-    return {
-        "NutrientLogId": str(uuid.uuid4()),
-        "FoodCategoryId": row.get("Category", "Unknown"),
-        "FoodId": str(row.get("Food_raw", "unknown")).lower(),
-        "Calories": round(safe_float(row.get("Energy(kcal)", 0)) * factor, 2),
-        "Protein": round(safe_float(row.get("PRO(g)", 0)) * factor, 2),
-        "Fat": round(safe_float(row.get("FAT(g)", 0)) * factor, 2),
-        "Carbs": round(safe_float(row.get("CHO(g)", 0)) * factor, 2),
-        "UserId": "Unknown",
-        "FoodGramAmount": grams,
-        "Source": "FEL"
-    }
-
-
-# -------------------------------------------------------------------
 # Health
 # -------------------------------------------------------------------
 @app.route("/health")
@@ -401,7 +311,7 @@ def health():
 
 
 # -------------------------------------------------------------------
-# BMI helpers and recommendation endpoint
+# BMI helpers and recommendation endpoint (old style with fixes)
 # -------------------------------------------------------------------
 def bmi_category(bmi: float):
     if bmi < 18.5:
@@ -411,6 +321,23 @@ def bmi_category(bmi: float):
     if bmi < 29.9:
         return "Overweight", [7]
     return "Obese", [8]
+
+
+def scale_row(row, grams=100.0):
+    portion = safe_float(row.get("Portion(g)"), 100) or 100
+    factor = grams / portion
+    return {
+        "NutrientLogId": str(uuid.uuid4()),
+        "FoodCategoryId": row.get("Category"),
+        "FoodId": str(row.get("Food")).lower(),
+        "Calories": round(safe_float(row.get("Energy(kcal)")) * factor, 2),
+        "Protein": round(safe_float(row.get("PRO(g)")) * factor, 2),
+        "Fat": round(safe_float(row.get("FAT(g)")) * factor, 2),
+        "Carbs": round(safe_float(row.get("CHO(g)")) * factor, 2),
+        "UserId": "Unknown",
+        "FoodGramAmount": grams,
+        "Source": "FEL"
+    }
 
 
 @app.route("/get_food_recommendations", methods=["POST"])
@@ -448,9 +375,7 @@ def get_food_recommendations():
         )
         for _, row in batch.iterrows():
             idx = len(foods)
-            food_name = str(row.get("Food_raw", "unknown"))
-            grams = safe_float(row.get("Portion(g)", 100))
-            item = unified_lookup(food_name, grams)
+            item = scale_row(row)
             item["MealType"] = meal_cycle[idx % 4]
             item["DayIndex"] = idx // 4
             foods.append(item)
@@ -486,11 +411,36 @@ def get_nutritional_info():
         name = str(raw.get("foodName", "unknown")).strip().lower()
         grams = safe_float(raw.get("grams"), 100)
 
-        # Use original name for nutritional lookup
-        item = unified_lookup(name, grams)
-        item["OriginalName"] = name
+        match_row = None
+        if fel is not None and not fel.empty:
+            subset = fel[fel["Food"].str.contains(name, na=False)]
+            if not subset.empty:
+                match_row = subset.iloc[0]
 
-        # ... (rest of your override logic and alerts) ...
+        if match_row is not None:
+            item = scale_row(match_row, grams)
+            item["Source"] = "FEL"
+            item["Note"] = "Philippines FEL standard used"
+        else:
+            item = external_fallback(name, grams)
+            item["Note"] = "External fallback used (not PH FEL standard)"
+
+        # Override with nutritionist’s pork adobo values if applicable
+        if name == "pork adobo":
+            nut_protein = 17.9 * (grams / 160)
+            nut_fat = 8.9 * (grams / 160)
+            nut_carbs = 2.7 * (grams / 160)
+            nut_calories = calculate_atwater_kcal(nut_protein, nut_fat, nut_carbs)
+            item["Protein"] = round(nut_protein, 2)
+            item["Fat"] = round(nut_fat, 2)
+            item["Carbs"] = round(nut_carbs, 2)
+            item["Calories"] = round(nut_calories, 2)
+            item["Note"] = "Adjusted to match nutritionist’s pork adobo values"
+
+        if item["Calories"] > 800:
+            alerts.append(f"High calories: {item['FoodId']} ({item['Calories']})")
+        if item["Fat"] > 30:
+            alerts.append(f"High fat: {item['FoodId']} ({item['Fat']})")
 
         results.append(item)
 
@@ -504,11 +454,37 @@ def get_nutritional_info():
     if include_sources:
         response["sources_used"] = {
             "USDA": bool(USDA_API_KEY),
-            "api_ninjas": bool(API_NINJAS_KEY)
+            "API_Ninjas": bool(API_NINJAS_KEY)
         }
 
     return jsonify(response)
 
+# -------------------------------------------------------------------
+# Gemini Food Description
+# -------------------------------------------------------------------
+@app.route('/describe_image', methods=['POST'])
+def api_describe_image():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']
+    file_path = os.path.join("uploads", file.filename)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    file.save(file_path)
+
+    try:
+        uploaded_file = genai.upload_file(file_path, mime_type="image/jpeg")
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        result = model.generate_content([
+            uploaded_file,
+            "\n\n",
+            "Please identify the Filipino food shown in the image. "
+            "If the image is not food or is fake food, respond with: No food is detected! "
+            "Respond with the food name and its category in this format: Food Name - Category."
+        ])
+        return jsonify({"description": result.text})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # -------------------------------------------------------------------
 # Errors
@@ -523,45 +499,9 @@ def internal_err(e):
     log.exception("Unhandled error: %s", e)
     return jsonify({"error": "Internal server error"}), 500
 
+
 # -------------------------------------------------------------------
-# Gemini Describe Image
-# -------------------------------------------------------------------
-@app.route('/describe_image', methods=['POST'])
-def api_describe_image():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
-    file = request.files['file']
-    if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
-
-    upload_dir = "uploads"
-    os.makedirs(upload_dir, exist_ok=True)
-    file_path = os.path.join(upload_dir, file.filename)
-    file.save(file_path)
-
-    try:
-        # Detect MIME type dynamically
-        mime_type, _ = mimetypes.guess_type(file_path)
-        if not mime_type:
-            mime_type = "image/jpeg"
-
-        uploaded_file = genai.upload_file(file_path, mime_type=mime_type)
-
-        # Use safer, simpler prompt
-        prompt = (
-            "Identify the food in this image. Respond only in the format: Food Name - Category. "
-            "If it is not food, respond: No food detected."
-        )
-
-        model = genai.GenerativeModel("gemini-1.5-flash")  # or "gemini-1.5-flash" if you want
-        result = model.generate_content([uploaded_file, "\n\n", prompt])
-
-        return jsonify({"description": result.text})
-
-    except Exception as e:
-        log.exception("Error in /describe_image")
-        return jsonify({"error": str(e)}), 500
+# Entry
 # -------------------------------------------------------------------
 if __name__ == "__main__":
     log.info("Starting server on 0.0.0.0:%d (dataset_loaded=%s)", DEFAULT_PORT, fel is not None)

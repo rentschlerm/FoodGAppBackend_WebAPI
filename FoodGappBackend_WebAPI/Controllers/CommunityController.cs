@@ -2,8 +2,15 @@
 
 namespace FoodGappBackend_WebAPI.Controllers
 {
+    [ApiController]
+    [Route("api/[controller]")]
     public class CommunityController : BaseController
     {
-        // Community Support and Social Sharing transactions
+        [HttpPost("share")]
+        public IActionResult ShareProgress([FromBody] object shareData)
+        {
+            // TODO: Integrate with social sharing or return mock data
+            return Ok(new { shared = true, platform = "MockSocial" });
+        }
     }
 }

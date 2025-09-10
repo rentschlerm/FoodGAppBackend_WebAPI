@@ -261,7 +261,21 @@ namespace FoodGappBackend_WebAPI.Controllers
                 experienceToNextLevel = _userMgr.GetExperienceToNextLevel(user)
             });
         }
+        // Gamification: Earn badge for consistent logging
+        [HttpGet("badges")]
+        public IActionResult GetBadges(int userId)
+        {
+            // TODO: Integrate with gamification logic or return mock data
+            return Ok(new[] { new { badge = "Consistent Logger", earned = true, date = DateTime.Now } });
+        }
 
+        // Cebu-specific: Log local Filipino dish
+        [HttpPost("log-cebu-food")]
+        public IActionResult LogCebuFood([FromBody] object foodData)
+        {
+            // TODO: Integrate with Cebu food logic or return mock data
+            return Ok(new { logged = true, dish = "Adobo", culturalRelevance = true });
+        }
         [HttpGet("user-level/{userId}")]
         public IActionResult GetUserLevel(int userId)
         {
@@ -278,7 +292,9 @@ namespace FoodGappBackend_WebAPI.Controllers
                 badge = "" // optional, you can add logic for badges here
             });
         }
+
     }
+
 
     public class AddExperienceRequest
     {

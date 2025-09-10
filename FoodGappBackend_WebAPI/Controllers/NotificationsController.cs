@@ -2,9 +2,15 @@
 
 namespace FoodGappBackend_WebAPI.Controllers
 {
+    [ApiController]
+    [Route("api/[controller]")]
     public class NotificationsController : BaseController
     {
-        // Real-Time Monitoging and Alerts transactions
-
+        [HttpPost("alert")]
+        public IActionResult SendAlert([FromBody] object alertData)
+        {
+            // TODO: Integrate with alert logic or return mock data
+            return Ok(new { alert = true, message = "High sugar detected!" });
+        }
     }
 }
