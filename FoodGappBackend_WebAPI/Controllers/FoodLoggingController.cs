@@ -13,12 +13,14 @@ namespace FoodGappBackend_WebAPI.Controllers
         private readonly BaseRepository<NutrientLog> _nutrientLogRepo;
         private readonly BaseRepository<FoodLog> _foodLogRepo;
         private readonly BaseRepository<Food> _foodRepo;
+        private readonly BaseRepository<DailyIntake> _dailyIntakeRepo;
 
         public FoodLoggingController()
         {
             _nutrientLogRepo = new BaseRepository<NutrientLog>();
             _foodLogRepo = new BaseRepository<FoodLog>();
             _foodRepo = new BaseRepository<Food>();
+            _dailyIntakeRepo = new BaseRepository<DailyIntake>();
         }
 
         [HttpPost("log")]
@@ -65,10 +67,12 @@ namespace FoodGappBackend_WebAPI.Controllers
                 UserId = request.UserId,
                 FoodId = food.FoodId,
                 FoodCategoryId = foodCategoryId,
-                Calories = "0",
-                Protein = "0",
-                Fat = "0",
-                FoodGramAmount = request.Grams
+                Calories = request.Calories ?? "0",
+                Protein = request.Protein ?? "0",
+                Fat = request.Fat ?? "0",
+                Carbs = request.Carbs ?? "0",
+                FoodGramAmount = request.Grams,
+                UpdatedAt = DateTime.UtcNow // <-- Add this line
             };
 
             if (_nutrientLogRepo.Create(nutrientLog, out ErrorMessage) != ErrorCode.Success)
@@ -85,6 +89,35 @@ namespace FoodGappBackend_WebAPI.Controllers
 
             if (_foodLogRepo.Create(foodLog, out ErrorMessage) != ErrorCode.Success)
                 return BadRequest(new { error = "Failed to create food log", details = ErrorMessage });
+
+            // --- DailyIntake logic ---
+            int caloriesToAdd = 0;
+            if (!string.IsNullOrWhiteSpace(nutrientLog.Calories))
+                int.TryParse(nutrientLog.Calories, out caloriesToAdd);
+
+            var today = DateTime.UtcNow.Date;
+            var dailyIntake = _dailyIntakeRepo.GetAll()
+                .FirstOrDefault(di => di.UserId == request.UserId && di.UpdatedAt.HasValue && di.UpdatedAt.Value.Date == today);
+
+            if (dailyIntake != null)
+            {
+                dailyIntake.CalorieIntake = (dailyIntake.CalorieIntake ?? 0) + caloriesToAdd;
+                dailyIntake.UpdatedAt = DateTime.UtcNow;
+                if (_dailyIntakeRepo.Update(dailyIntake.DailyIntakeId, dailyIntake, out ErrorMessage) != ErrorCode.Success)
+                    return BadRequest(new { error = "Failed to update daily intake", details = ErrorMessage });
+            }
+            else
+            {
+                var newDailyIntake = new DailyIntake
+                {
+                    UserId = request.UserId,
+                    CalorieIntake = caloriesToAdd,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                if (_dailyIntakeRepo.Create(newDailyIntake, out ErrorMessage) != ErrorCode.Success)
+                    return BadRequest(new { error = "Failed to create daily intake", details = ErrorMessage });
+            }
+            // --- End DailyIntake logic ---
 
             // Award XP for food log
             var user = _userMgr.GetUserById(request.UserId);
@@ -161,6 +194,20 @@ namespace FoodGappBackend_WebAPI.Controllers
                 return StatusCode(500, new { error = "An error occurred while fetching logs", details = ex.Message });
             }
         }
+        [HttpGet("getDailyIntake")]
+        public IActionResult GetDailyIntake([FromQuery] int userId)
+        {
+            if (userId <= 0)
+                return BadRequest(new { error = "Valid user ID is required" });
+
+            var today = DateTime.UtcNow.Date;
+            var dailyIntake = _dailyIntakeRepo.GetAll()
+                .FirstOrDefault(di => di.UserId == userId && di.UpdatedAt.HasValue && di.UpdatedAt.Value.Date == today);
+
+            int calorieIntake = dailyIntake?.CalorieIntake ?? 0;
+
+            return Ok(new { calorieIntake });
+        }
 
         [HttpDelete("deleteLog/{foodLogId}")]
         public IActionResult DeleteLog(int foodLogId)
@@ -185,12 +232,17 @@ namespace FoodGappBackend_WebAPI.Controllers
         }
     }
 
+
     public class LogFoodRequest
     {
         public int UserId { get; set; }
         public string FoodName { get; set; }
         public double Grams { get; set; }
         public string? MealType { get; set; }
+        public string? Calories { get; set; }
+        public string? Protein { get; set; }
+        public string? Fat { get; set; }
+        public string? Carbs { get; set; }
     }
 
     public class UpdateNutrientRequest
@@ -204,10 +256,10 @@ namespace FoodGappBackend_WebAPI.Controllers
     {
         public string FoodName { get; set; }
         public double Grams { get; set; }
-        public string? Calories { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         public string? Protein { get; set; }
         public string? Fat { get; set; }
         public string? MealType { get; set; }
-        public string? Carbs { get; set; } // <-- Add this
+        public string? Carbs { get; set; }
     }
 }

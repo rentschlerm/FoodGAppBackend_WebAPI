@@ -24,6 +24,11 @@ namespace FoodGappBackend_WebAPI.Controllers
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(ul.Email) || string.IsNullOrWhiteSpace(ul.Password))
+                {
+                    return BadRequest(new { error = "Email and Password are required." });
+                }
+
                 if (_userMgr.SignIn(ul.Email, ul.Password, ref ErrorMessage) == ErrorCode.Success)
                 {
                     var user = _userMgr.GetUserByEmail(ul.Email);
@@ -62,7 +67,6 @@ namespace FoodGappBackend_WebAPI.Controllers
                     var roleName = _userMgr.GetRoleNameByRoleId(userRole.RoleId);
 
                     return Ok(new { message = "Login successful", roleName = roleName.RoleName, userId = user.UserId });
-
                 }
 
                 return BadRequest(new { error = "Invalid login credentials" });
