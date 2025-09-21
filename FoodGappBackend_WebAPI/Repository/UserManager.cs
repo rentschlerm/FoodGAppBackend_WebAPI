@@ -160,5 +160,9 @@ namespace FoodGappBackend_WebAPI.Repository
         {
             return (user.UserLevel ?? 1) * 100;
         }
+        public List<User> GetAllUsers()
+        {
+            return _userRepo.GetAll();
+        }
     }
 }
