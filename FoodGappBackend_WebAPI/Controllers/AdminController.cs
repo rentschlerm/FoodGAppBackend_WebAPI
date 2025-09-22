@@ -290,7 +290,6 @@ namespace FoodGappBackend_WebAPI.Controllers
         [HttpGet("nutrient-logs")]
         public IActionResult GetAllNutrientLogs()
         {
-            // Materialize first to avoid CS8198
             var logs = _db.NutrientLogs.ToList();
             var nutrientLogs = logs
                 .Select(nl => new
@@ -327,23 +326,102 @@ namespace FoodGappBackend_WebAPI.Controllers
             return Ok(new { dailyIntakeLogs });
         }
 
+        // GET: /api/admin/food-history
+        [HttpGet("food-history")]
+        public IActionResult GetFoodHistory()
+        {
+            var foodHistory = _db.FoodLogs
+                .Where(fl => fl.Food != null && fl.FoodCategory != null)
+                .GroupBy(fl => new { fl.FoodId, fl.Food.FoodName, fl.FoodCategory.FoodCategoryName })
+                .Select(g => new
+                {
+                    id = g.Key.FoodId,
+                    foodName = g.Key.FoodName,
+                    categoryName = g.Key.FoodCategoryName,
+                    timesLogged = g.Count(),
+                    lastLogged = g
+                        .Select(fl => fl.NutrientLogId != null
+                            ? _db.NutrientLogs.Where(nl => nl.NutrientLogId == fl.NutrientLogId).Select(nl => nl.UpdatedAt).FirstOrDefault()
+                            : null)
+                        .Max(dt => dt) != null
+                        ? g.Select(fl => fl.NutrientLogId != null
+                            ? _db.NutrientLogs.Where(nl => nl.NutrientLogId == fl.NutrientLogId).Select(nl => nl.UpdatedAt).FirstOrDefault()
+                            : null)
+                            .Max(dt => dt)!.Value.ToString("o")
+                        : null
+                })
+                .ToList();
+
+            return Ok(new { foodHistory });
+        }
+
+        // GET: /api/admin/food-categories/stats
+        [HttpGet("food-categories/stats")]
+        public IActionResult GetFoodCategoryStats()
+        {
+            var categoryStats = _db.FoodCategories
+                .Select(cat => new
+                {
+                    categoryName = cat.FoodCategoryName,
+                    foodCount = cat.Foods != null ? cat.Foods.Count() : 0,
+                    totalLogs = cat.Foods != null ? cat.Foods.SelectMany(f => f.FoodLogs ?? new List<FoodLog>()).Count() : 0,
+                    averageCalories = (cat.Foods != null && cat.Foods.SelectMany(f => f.NutrientLogs ?? new List<NutrientLog>()).Any())
+                        ? cat.Foods.SelectMany(f => f.NutrientLogs ?? new List<NutrientLog>()).Average(nl => ParseDouble(nl.Calories))
+                        : 0
+                })
+                .ToList();
+
+            return Ok(new { categoryStats });
+        }
+
+        // GET: /api/admin/nutrient-trends
+        [HttpGet("nutrient-trends")]
+        public IActionResult GetNutrientTrends()
+        {
+            var trends = _db.NutrientLogs
+                .Where(nl => nl.UpdatedAt.HasValue)
+                .GroupBy(nl => nl.UpdatedAt.Value.Date)
+                .Select(g => new
+                {
+                    date = g.Key.ToString("yyyy-MM-dd"),
+                    avgCalories = g.Average(nl => ParseDouble(nl.Calories)),
+                    avgProtein = g.Average(nl => ParseDouble(nl.Protein)),
+                    avgFat = g.Average(nl => ParseDouble(nl.Fat)),
+                    avgCarbs = g.Average(nl => ParseDouble(nl.Carbs)),
+                    userCount = g.Select(nl => nl.UserId).Distinct().Count()
+                })
+                .OrderBy(t => t.date)
+                .ToList();
+
+            return Ok(new { trends });
+        }
+
+        // GET: /api/admin/user-activity-trends
+        [HttpGet("user-activity-trends")]
+        public IActionResult GetUserActivityTrends()
+        {
+            // No DateCreated property, so just return empty trends for now
+            var activityTrends = new List<object>();
+            return Ok(new { activityTrends });
+        }
+
         // Helper for parsing numbers safely
         private static double ParseDouble(string? value)
         {
             if (string.IsNullOrWhiteSpace(value)) return 0;
             return double.TryParse(value, out var result) ? result : 0;
         }
-    }
 
-    // Request models
-    public class UpdateUserStatusRequest
-    {
-        public bool IsActive { get; set; }
-    }
+        // Request models
+        public class UpdateUserStatusRequest
+        {
+            public bool IsActive { get; set; }
+        }
 
-    public class AdminLoginRequest
-    {
-        public string Username { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
+        public class AdminLoginRequest
+        {
+            public string Username { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+        }
     }
 }
