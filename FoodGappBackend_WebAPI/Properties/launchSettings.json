@@ -14,7 +14,7 @@
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "launchUrl": "swagger",
-      "applicationUrl": "https://localhost:5129;http://192.168.254.148:5129", //change to your pc's ipv4 hoi
+      "applicationUrl": "https://localhost:5129;http://192.168.254.144:5129", //change to your pc's ipv4 hoi
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
@@ -24,7 +24,7 @@
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "launchUrl": "swagger",
-      "applicationUrl": "https://localhost:5129;http://192.168.254.148:5129", //kani sad,ilisa sa imong ipv4
+      "applicationUrl": "https://localhost:5129;http://192.168.254.144:5129", //kani sad,ilisa sa imong ipv4
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

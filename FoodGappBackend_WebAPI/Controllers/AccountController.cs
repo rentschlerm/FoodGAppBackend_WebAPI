@@ -47,7 +47,7 @@ namespace FoodGappBackend_WebAPI.Controllers
 
                     var claims = new List<Claim>
                     {
-                        new Claim(ClaimTypes.NameIdentifier, user.Email),
+                        new Claim(ClaimTypes.NameIdentifier, user.Email ?? string.Empty),
                         new Claim(ClaimTypes.Name, user.UserId.ToString()),
                     };
 
@@ -83,7 +83,6 @@ namespace FoodGappBackend_WebAPI.Controllers
         {
             try
             {
-                // Ensure default level and experience
                 user.UserLevel ??= 1;
                 user.UserCurrentExperience ??= 0;
 
@@ -118,6 +117,14 @@ namespace FoodGappBackend_WebAPI.Controllers
             }
         }
 
+        // At the top of the file, you can optionally add an enum for clarity
+        public enum GenderEnum
+        {
+            Male = 0,
+            Female = 1,
+            Others = 2
+        }
+
         [HttpPost("updateAccount")]
         public IActionResult UpdateUserAccount([FromBody] User user)
         {
@@ -139,6 +146,13 @@ namespace FoodGappBackend_WebAPI.Controllers
             existingUser.Weight = user.Weight;
             existingUser.Height = user.Height;
             existingUser.BodyGoalId = user.BodyGoalId;
+
+            // Gender: expect 0 for Male, 1 for Female, 2 for Others, null or other for unspecified
+            if (user.Gender == 0 || user.Gender == 1 || user.Gender == 2)
+                existingUser.Gender = user.Gender;
+            else
+                existingUser.Gender = null;
+
             // Do NOT update Email, IsActive, or Password
 
             if (_userMgr.UpdateUser(existingUser, ref ErrorMessage) != ErrorCode.Success)
@@ -149,6 +163,77 @@ namespace FoodGappBackend_WebAPI.Controllers
             return Ok(new { message = "Updating User successful" });
         }
 
+        [HttpGet("getProfile")]
+        public IActionResult GetProfile([FromQuery] int userId)
+        {
+            var user = _userMgr.GetUserById(userId);
+            if (user == null)
+                return NotFound(new { error = "User not found" });
+
+            int userLevel = user.UserLevel ?? 1;
+            int userCurrentExperience = user.UserCurrentExperience ?? 0;
+
+            return Ok(new
+            {
+                userInfo = new
+                {
+                    userId = user.UserId,
+                    email = user.Email,
+                    firstName = user.FirstName,
+                    lastName = user.LastName,
+                    age = user.Age,
+                    gender = user.Gender, // returns 0 for Male, 1 for Female, 2 for Others, null for unspecified
+                    weight = user.Weight,
+                    height = user.Height,
+                    bodyGoalId = user.BodyGoalId,
+                    userLevel = user.UserLevel ?? 1,
+                    userCurrentExperience = user.UserCurrentExperience ?? 0,
+                    experienceToNextLevel = _userMgr.GetExperienceToNextLevel(user)
+                }
+            });
+        }
+
+        [HttpPost("changePassword")]
+        public IActionResult ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            if (!User.Identity?.IsAuthenticated ?? false || UserId == 0)
+            {
+                return BadRequest(new { error = "User is not authenticated" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword) ||
+                string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                return BadRequest(new { error = "Current password and new password are required" });
+            }
+
+            if (request.NewPassword.Length < 6)
+            {
+                return BadRequest(new { error = "New password must be at least 6 characters long" });
+            }
+
+            var existingUser = _userMgr.GetUserById(UserId);
+            if (existingUser == null)
+            {
+                return BadRequest(new { error = "User not found" });
+            }
+
+            // Verify current password
+            if (_userMgr.SignIn(existingUser.Email ?? string.Empty, request.CurrentPassword, ref ErrorMessage) != ErrorCode.Success)
+            {
+                return BadRequest(new { error = "Current password is incorrect" });
+            }
+
+            // Update password (hash if needed)
+            existingUser.Password = request.NewPassword;
+
+            if (_userMgr.UpdateUser(existingUser, ref ErrorMessage) != ErrorCode.Success)
+            {
+                return BadRequest(new { error = "Failed to update password", details = ErrorMessage });
+            }
+
+            return Ok(new { message = "Password updated successfully" });
+        }
 
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
@@ -180,8 +265,6 @@ namespace FoodGappBackend_WebAPI.Controllers
 
             return Ok(new { message = "User deactivated successfully" });
         }
-
-        // These two endpoints are now replaced to use User instead of UserInfo
 
         [HttpPost("updateUserInfo")]
         public IActionResult UpdateUserInfo([FromBody] User user)
@@ -220,30 +303,7 @@ namespace FoodGappBackend_WebAPI.Controllers
 
             return Ok(new { message = "User created successfully" });
         }
-        [HttpGet("getProfile")]
-        public IActionResult GetProfile([FromQuery] int userId)
-        {
-            var user = _userMgr.GetUserById(userId);
-            if (user == null)
-                return NotFound(new { error = "User not found" });
 
-            int userLevel = user.UserLevel ?? 1;
-            int userCurrentExperience = user.UserCurrentExperience ?? 0;
-
-            return Ok(new
-            {
-                userId = user.UserId,
-                firstName = user.FirstName,
-                lastName = user.LastName,
-                age = user.Age,
-                weight = user.Weight,
-                height = user.Height,
-                bodyGoalId = user.BodyGoalId,
-                userLevel,
-                userCurrentExperience,
-                experienceToNextLevel = _userMgr.GetExperienceToNextLevel(user)
-            });
-        }
         [HttpPost("add-experience")]
         public IActionResult AddExperience([FromBody] AddExperienceRequest request)
         {
@@ -265,7 +325,7 @@ namespace FoodGappBackend_WebAPI.Controllers
                 experienceToNextLevel = _userMgr.GetExperienceToNextLevel(user)
             });
         }
-        // Gamification: Earn badge for consistent logging
+
         [HttpGet("badges")]
         public IActionResult GetBadges(int userId)
         {
@@ -273,13 +333,13 @@ namespace FoodGappBackend_WebAPI.Controllers
             return Ok(new[] { new { badge = "Consistent Logger", earned = true, date = DateTime.Now } });
         }
 
-        // Cebu-specific: Log local Filipino dish
         [HttpPost("log-cebu-food")]
         public IActionResult LogCebuFood([FromBody] object foodData)
         {
             // TODO: Integrate with Cebu food logic or return mock data
             return Ok(new { logged = true, dish = "Adobo", culturalRelevance = true });
         }
+
         [HttpGet("user-level/{userId}")]
         public IActionResult GetUserLevel(int userId)
         {
@@ -296,13 +356,17 @@ namespace FoodGappBackend_WebAPI.Controllers
                 badge = "" // optional, you can add logic for badges here
             });
         }
-
     }
-
 
     public class AddExperienceRequest
     {
         public int UserId { get; set; }
         public int Experience { get; set; }
+    }
+
+    public class ChangePasswordRequest
+    {
+        public required string CurrentPassword { get; set; }
+        public required string NewPassword { get; set; }
     }
 }

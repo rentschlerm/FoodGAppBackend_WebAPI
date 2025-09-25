@@ -107,11 +107,15 @@ def load_dataset(path: str):
         pro_col = find_col(["protein"])
         fat_col = find_col(["fat"])
         energy_col = find_col(["calories"])
+        sugar_col = find_col(["sugar"])
+        micronutrients_col = find_col(["micronutrients"])
 
         df["CHO(g)"] = df[cho_col].apply(lambda v: safe_float(v, 0)) if cho_col else 0.0
         df["PRO(g)"] = df[pro_col].apply(lambda v: safe_float(v, 0)) if pro_col else 0.0
         df["FAT(g)"] = df[fat_col].apply(lambda v: safe_float(v, 0)) if fat_col else 0.0
         df["Energy(kcal)"] = df[energy_col].apply(lambda v: safe_float(v, 0)) if energy_col else 0.0
+        df["Sugar(g)"] = df[sugar_col].apply(lambda v: safe_float(v, 0)) if sugar_col else 0.0
+        df["MicroNutrients"] = df[micronutrients_col].astype(str) if micronutrients_col else ""
 
         # Category
         cat_col = find_col(["foodcategoryid"])
@@ -146,7 +150,9 @@ def lookup_fel(food: str):
         "Fat": float(match_row.get("FAT(g)", 0)),
         "Carbs": float(match_row.get("CHO(g)", 0)),
         "Calories": float(match_row.get("Energy(kcal)", 0)),
+        "Sugar": float(match_row.get("Sugar(g)", 0)),  # Add Sugar support
         "Portion": float(match_row.get("Portion(g)", 100)),
+        "MicroNutrients": str(match_row.get("MicroNutrients", "")),  # Add MicroNutrients support
         "lookup_path": lookup_path
     }
 
@@ -207,7 +213,7 @@ def store_cache(food_name: str, grams: float, value: dict):
     external_cache[cache_key(food_name, grams)] = value
 
 
-def normalize_external_item(food_name: str, grams: float, src: str, calories=0, protein=0, fat=0, carbs=0):
+def normalize_external_item(food_name: str, grams: float, src: str, calories=0, protein=0, fat=0, carbs=0, sugar=0, micronutrients=""):
     return {
         "NutrientLogId": str(uuid.uuid4()),
         "FoodCategoryId": src,
@@ -216,6 +222,8 @@ def normalize_external_item(food_name: str, grams: float, src: str, calories=0, 
         "Protein": round(protein, 2),
         "Fat": round(fat, 2),
         "Carbs": round(carbs, 2),
+        "Sugar": round(sugar, 2),  # Add Sugar field
+        "MicroNutrients": micronutrients,  # Add MicroNutrients field
         "UserId": "Unknown",
         "FoodGramAmount": float(grams),
         "Source": src
@@ -237,14 +245,78 @@ def lookup_usda(food_name: str, grams: float):
         f = foods[0]
         nutrients = {n.get("nutrientName").lower(): n.get("value") for n in f.get("foodNutrients", []) if
                      "nutrientName" in n}
+
+        # Debug: Log all available nutrient names for troubleshooting
+        log.info("Available nutrients for %s: %s", food_name, list(nutrients.keys()))
+
         protein = safe_float(nutrients.get("protein", 0))
         fat = safe_float(nutrients.get("total lipid (fat)", 0))
         carbs = safe_float(nutrients.get("carbohydrate, by difference", 0))
-        calories = calculate_atwater_kcal(protein, fat, carbs)  # Use Atwater
-        scale = grams / 100.0
+
+        # Enhanced sugar extraction with more field variations and debugging
+        sugar = 0
+        sugar_candidates = [
+            "sugars, total including nlea",
+            "sugars, total",
+            "sugars, added",
+            "total sugars",
+            "sugar",
+            "sugars",
+            "sugars, by summation",
+            "carbohydrate, by summation"
+        ]
+
+        # Debug: Show what sugar fields are available
+        available_sugar_fields = [k for k in nutrients.keys() if "sugar" in k or "carbohydrate" in k]
+        if available_sugar_fields:
+            log.info("Sugar-related fields for %s: %s", food_name, available_sugar_fields)
+
+        for candidate in sugar_candidates:
+            sugar = safe_float(nutrients.get(candidate, 0))
+            if sugar > 0:
+                log.info("Found sugar for %s using field '%s': %s", food_name, candidate, sugar)
+                break
+
+        # If still no sugar found, try partial matching
+        if sugar == 0:
+            for nutrient_name, value in nutrients.items():
+                if "sugar" in nutrient_name and safe_float(value, 0) > 0:
+                    sugar = safe_float(value, 0)
+                    log.info("Found sugar for %s using partial match '%s': %s", food_name, nutrient_name, sugar)
+                    break
+
+        # FIXED: Build micronutrients string with proper scaling - scale BEFORE converting units
+        micronutrients_list = []
+        scale = grams / 100.0  # Calculate scale factor once
+        
+        micro_map = {
+            "fiber, total dietary": ("Fiber", 1, "g"),  # already in g
+            "sodium, na": ("Sodium", 1, "mg"),  # keep in mg
+            "vitamin c, total ascorbic acid": ("Vit C", 1, "mg"),  # keep in mg
+            "vitamin a, rae": ("Vit A", 1, "mcg"),  # keep in mcg
+            "calcium, ca": ("Calcium", 1, "mg"),  # keep in mg
+            "iron, fe": ("Iron", 1, "mg"),  # keep in mg
+            "potassium, k": ("Potassium", 1, "mg"),  # keep in mg
+            "cholesterol": ("Cholesterol", 1, "mg"),  # add cholesterol
+            "magnesium, mg": ("Magnesium", 1, "mg")  # add magnesium
+        }
+        
+        for usda_name, (friendly_name, divisor, unit) in micro_map.items():
+            val = safe_float(nutrients.get(usda_name, 0))
+            if val > 0:
+                # Scale the value based on portion size (USDA values are per 100g)
+                scaled_val = val * scale
+                # Only show if the scaled value is meaningful
+                if scaled_val >= 0.1:
+                    micronutrients_list.append(f"{friendly_name}: {scaled_val:.1f}{unit}")
+        
+        micronutrients = ", ".join(micronutrients_list)
+        log.info("Micronutrients for %s (%sg): %s", food_name, grams, micronutrients)
+
+        calories = calculate_atwater_kcal(protein, fat, carbs)
         return normalize_external_item(
             food_name, grams, "USDA",
-            calories * scale, protein * scale, fat * scale, carbs * scale
+            calories * scale, protein * scale, fat * scale, carbs * scale, sugar * scale, micronutrients
         )
     except Exception as e:
         log.warning("USDA lookup failed for %s: %s", food_name, e)
@@ -271,8 +343,29 @@ def lookup_api_ninjas(food_name: str, grams: float):
         protein = safe_float(d.get("protein_g"), 0)
         fat = safe_float(d.get("fat_total_g"), 0)
         carbs = safe_float(d.get("carbohydrates_total_g"), 0)
-        calories = calculate_atwater_kcal(protein, fat, carbs)  # Use Atwater
-        return normalize_external_item(food_name, grams, "API_Ninjas", calories, protein, fat, carbs)
+        sugar = safe_float(d.get("sugar_g"), 0)
+        
+        # FIXED: API Ninjas already returns values for the requested portion size, no additional scaling needed
+        micronutrients_list = []
+        micro_data = [
+            ("Fiber", d.get("fiber_g"), "g"),
+            ("Sodium", d.get("sodium_mg"), "mg"),
+            ("Potassium", d.get("potassium_mg"), "mg"),
+            ("Vit A", d.get("vitamin_a_mcg"), "mcg"),
+            ("Vit C", d.get("vitamin_c_mg"), "mg"),
+            ("Calcium", d.get("calcium_mg"), "mg"),
+            ("Iron", d.get("iron_mg"), "mg"),
+            ("Cholesterol", d.get("cholesterol_mg"), "mg")
+        ]
+        for name, val, unit in micro_data:
+            val = safe_float(val, 0)
+            if val > 0:
+                micronutrients_list.append(f"{name}: {val:.1f}{unit}")
+        micronutrients = ", ".join(micronutrients_list)
+        log.info("Micronutrients for %s (%sg): %s", food_name, grams, micronutrients)
+        
+        calories = calculate_atwater_kcal(protein, fat, carbs)
+        return normalize_external_item(food_name, grams, "API_Ninjas", calories, protein, fat, carbs, sugar, micronutrients)
     except Exception as e:
         log.warning("API Ninjas lookup failed for %s: %s", food_name, e)
         return None
@@ -301,46 +394,61 @@ def unified_lookup(food: str, grams: float):
     food_norm = normalize_text(food)
     sources = []
 
-    # 1. FEL lookup
+    # 1. FEL lookup - grams is already the edible portion
     fel_data = lookup_fel(food_norm)
     if fel_data and any([fel_data["Protein"], fel_data["Fat"], fel_data["Carbs"]]):
         sources.append(fel_data["lookup_path"])
         portion = fel_data.get("Portion", 100) or 100
+        
+        # Scale based on edible portion (grams) vs FEL portion
         scale = grams / portion
+        log.info("FEL scaling for %s: %s edible grams / %s FEL portion = %s factor", food_norm, grams, portion, scale)
+        
         base = {
-            "Protein": fel_data["Protein"],
-            "Fat": fel_data["Fat"],
-            "Carbs": fel_data["Carbs"],
-            "Calories": fel_data["Calories"]
+            "Protein": round(fel_data["Protein"] * scale, 2),
+            "Fat": round(fel_data["Fat"] * scale, 2),
+            "Carbs": round(fel_data["Carbs"] * scale, 2),
+            "Calories": round(fel_data["Calories"] * scale, 2),
+            "Sugar": round(fel_data["Sugar"] * scale, 2),
+            "MicroNutrients": fel_data["MicroNutrients"]
         }
+        
+        # NEW: If FEL doesn't have micronutrients, try external APIs for micronutrients only
+        if not base["MicroNutrients"] or base["MicroNutrients"].strip() == "":
+            log.info("FEL has macros for %s but no micronutrients, trying external APIs for edible portion", food_norm)
+            
+            # Try USDA for micronutrients using edible portion
+            usda_data = lookup_usda(food_norm, grams)
+            if usda_data and usda_data.get("MicroNutrients"):
+                base["MicroNutrients"] = usda_data["MicroNutrients"]
+                sources.append("USDA-micro")
+            else:
+                # Try API Ninjas for micronutrients using edible portion
+                nin_data = lookup_api_ninjas(food_norm, grams)
+                if nin_data and nin_data.get("MicroNutrients"):
+                    base["MicroNutrients"] = nin_data["MicroNutrients"]
+                    sources.append("Ninjas-micro")
+        
     else:
-        # 2. USDA lookup
+        # 2. USDA lookup - grams is edible portion
         usda_data = lookup_usda(food_norm, grams)
         if usda_data:
             sources.append("USDA")
             base = usda_data
         else:
-            # 3. API Ninjas lookup
+            # 3. API Ninjas lookup - grams is edible portion
             nin_data = lookup_api_ninjas(food_norm, grams)
             if nin_data:
                 sources.append("API_Ninjas")
                 base = nin_data
             else:
                 sources.append("None")
-                base = {"Protein": 0, "Fat": 0, "Carbs": 0, "Calories": 0}
+                base = {"Protein": 0, "Fat": 0, "Carbs": 0, "Calories": 0, "Sugar": 0, "MicroNutrients": ""}
 
     # Compute calories with Atwater if missing or zero
     if base["Calories"] <= 0:
-        base["Calories"] = calculate_atwater_kcal(base["Protein"], base["Fat"], base["Carbs"])
+        base["Calories"] = round(calculate_atwater_kcal(base["Protein"], base["Fat"], base["Carbs"]), 2)
         sources.append("Atwater")
-
-    # For FEL, scale nutrients (already scaled for external APIs)
-    if "FEL" in sources[0]:
-        scale = grams / 100.0
-        base["Protein"] = round(base["Protein"] * scale, 2)
-        base["Fat"] = round(base["Fat"] * scale, 2)
-        base["Carbs"] = round(base["Carbs"] * scale, 2)
-        base["Calories"] = round(base["Calories"] * scale, 2)
 
     result = {
         "NutrientLogId": str(uuid.uuid4()),
@@ -350,8 +458,10 @@ def unified_lookup(food: str, grams: float):
         "Protein": base["Protein"],
         "Fat": base["Fat"],
         "Carbs": base["Carbs"],
+        "Sugar": base["Sugar"],
+        "MicroNutrients": base["MicroNutrients"],
         "UserId": "Unknown",
-        "FoodGramAmount": float(grams),
+        "FoodGramAmount": float(grams),  # This is the edible portion
         "Source": "+".join(sources),
         "LookupPath": sources[0] if sources else "None"
     }
@@ -377,6 +487,8 @@ def scale_row(row, grams=100.0):
         "Protein": round(safe_float(row.get("PRO(g)", 0)) * factor, 2),
         "Fat": round(safe_float(row.get("FAT(g)", 0)) * factor, 2),
         "Carbs": round(safe_float(row.get("CHO(g)", 0)) * factor, 2),
+        "Sugar": round(safe_float(row.get("Sugar(g)", 0)) * factor, 2),  # Add Sugar scaling
+        "MicroNutrients": str(row.get("MicroNutrients", "")),  # Add MicroNutrients
         "UserId": "Unknown",
         "FoodGramAmount": grams,
         "Source": "FEL"
@@ -482,21 +594,41 @@ def get_nutritional_info():
     results = []
     alerts = []
 
+    log.info("Incoming nutritional query items=%s", items)
+
     for raw in items:
         name = str(raw.get("foodName", "unknown")).strip().lower()
-        grams = safe_float(raw.get("grams"), 100)
+        edible_grams = safe_float(raw.get("grams"), 100)  # This is already the edible portion
+        
+        log.info("Processing %s with %s edible grams", name, edible_grams)
 
-        # Use original name for nutritional lookup
-        item = unified_lookup(name, grams)
+        # Use edible grams directly for nutritional lookup
+        item = unified_lookup(name, edible_grams)
         item["OriginalName"] = name
 
-        # ... (rest of your override logic and alerts) ...
+        # Alerts for high values based on edible portion
+        if item["Calories"] > 800:
+            alerts.append(f"High calories: {item['FoodId']} ({item['Calories']} kcal)")
+        if item["Fat"] > 30:
+            alerts.append(f"High fat: {item['FoodId']} ({item['Fat']}g)")
 
         results.append(item)
+        
+        log.info(
+            "Computed %s edible_grams=%.2f src=%s cal=%.2f prot=%.2f fat=%.2f carbs=%.2f sugar=%.2f",
+            item["FoodId"],
+            edible_grams,
+            item["Source"],
+            item["Calories"],
+            item["Protein"],
+            item["Fat"],
+            item["Carbs"],
+            item["Sugar"]
+        )
 
     response = {
         "foods": results,
-        "body_goal_note": "Philippines FEL standard used where available. External fallbacks applied only if no FEL match."
+        "body_goal_note": "Philippines FEL standard used where available. External fallbacks applied only if no FEL match. All calculations based on edible portion."
     }
     if alerts:
         response["realtime_alert"] = True

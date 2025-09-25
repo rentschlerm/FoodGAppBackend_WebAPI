@@ -113,9 +113,9 @@ public partial class FoodGappDbContext : DbContext
             entity.ToTable("NutrientLog");
 
             entity.Property(e => e.Calories).HasMaxLength(50);
-            entity.Property(e => e.Carbs).HasMaxLength(50);
             entity.Property(e => e.Fat).HasMaxLength(50);
             entity.Property(e => e.Protein).HasMaxLength(50);
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
 
             entity.HasOne(d => d.FoodCategory).WithMany(p => p.NutrientLogs)
                 .HasForeignKey(d => d.FoodCategoryId)

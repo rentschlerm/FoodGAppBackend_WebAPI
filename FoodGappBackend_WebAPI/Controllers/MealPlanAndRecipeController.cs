@@ -26,7 +26,8 @@ namespace FoodGappBackend_WebAPI.Controllers
                     Calories = meal.Calories.ToString(),
                     Protein = meal.Protein.ToString(),
                     Fat = meal.Fats.ToString(),
-                    Carbs = meal.Carbs.ToString(),
+                    Carbs = (float)meal.Carbs, // Use float, not string
+                    Sugar = null,              // Set to null or a float value if available
                     UserId = meal.UserId,
                     FoodId = meal.FoodId,
                     FoodCategoryId = meal.FoodCategoryId,

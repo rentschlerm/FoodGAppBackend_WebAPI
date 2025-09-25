@@ -291,6 +291,7 @@ namespace FoodGappBackend_WebAPI.Controllers
         public IActionResult GetAllNutrientLogs()
         {
             var logs = _db.NutrientLogs.ToList();
+            // In GetAllNutrientLogs, add sugar and any other float? nutrients using the same pattern:
             var nutrientLogs = logs
                 .Select(nl => new
                 {
@@ -301,7 +302,8 @@ namespace FoodGappBackend_WebAPI.Controllers
                     calories = ParseDouble(nl.Calories),
                     protein = ParseDouble(nl.Protein),
                     fat = ParseDouble(nl.Fat),
-                    carbs = ParseDouble(nl.Carbs),
+                    carbs = ParseDouble(nl.Carbs?.ToString()),
+                    sugar = ParseDouble(nl.Sugar?.ToString()), // <-- add this line
                     updatedAt = nl.UpdatedAt.HasValue ? nl.UpdatedAt.Value.ToString("o") : null
                 })
                 .ToList();
@@ -328,11 +330,12 @@ namespace FoodGappBackend_WebAPI.Controllers
 
         // GET: /api/admin/food-history
         [HttpGet("food-history")]
+        [HttpGet("food-history")]
         public IActionResult GetFoodHistory()
         {
             var foodHistory = _db.FoodLogs
                 .Where(fl => fl.Food != null && fl.FoodCategory != null)
-                .GroupBy(fl => new { fl.FoodId, fl.Food.FoodName, fl.FoodCategory.FoodCategoryName })
+                .GroupBy(fl => new { fl.FoodId, FoodName = fl.Food!.FoodName, FoodCategoryName = fl.FoodCategory!.FoodCategoryName })
                 .Select(g => new
                 {
                     id = g.Key.FoodId,
@@ -380,14 +383,13 @@ namespace FoodGappBackend_WebAPI.Controllers
         {
             var trends = _db.NutrientLogs
                 .Where(nl => nl.UpdatedAt.HasValue)
-                .GroupBy(nl => nl.UpdatedAt.Value.Date)
+                .GroupBy(nl => nl.UpdatedAt!.Value.Date)
                 .Select(g => new
                 {
                     date = g.Key.ToString("yyyy-MM-dd"),
                     avgCalories = g.Average(nl => ParseDouble(nl.Calories)),
                     avgProtein = g.Average(nl => ParseDouble(nl.Protein)),
                     avgFat = g.Average(nl => ParseDouble(nl.Fat)),
-                    avgCarbs = g.Average(nl => ParseDouble(nl.Carbs)),
                     userCount = g.Select(nl => nl.UserId).Distinct().Count()
                 })
                 .OrderBy(t => t.date)

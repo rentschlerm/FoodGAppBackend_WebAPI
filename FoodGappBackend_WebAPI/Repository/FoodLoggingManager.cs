@@ -36,7 +36,7 @@ namespace FoodGappBackend_WebAPI.Repository
         }
 
         // New: Get carbs for a FoodLog by its ID
-        public string? GetCarbsForFoodLog(int foodLogId)
+        public double? GetCarbsForFoodLog(int foodLogId)
         {
             var foodLog = _foodLogRepo.Get(foodLogId);
             if (foodLog?.NutrientLogId != null)
