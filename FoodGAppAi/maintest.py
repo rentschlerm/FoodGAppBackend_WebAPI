@@ -524,6 +524,35 @@ def bmi_category(bmi: float):
         return "Overweight", [7]
     return "Obese", [8]
 
+def get_meal_calorie_targets():
+    """Return calorie targets for each meal type to total 1500 calories/day"""
+    return {
+        "breakfast": 300,
+        "lunch": 500, 
+        "dinner": 500,
+        "snack": 200
+    }
+
+def find_appropriate_portion(food_row, target_calories):
+    """
+    Calculate appropriate portion size to hit target calories for a meal.
+    Returns (portion_grams, actual_calories)
+    """
+    # Get base nutrition per 100g from FEL
+    base_calories = safe_float(food_row.get("Energy(kcal)", 0))
+    if base_calories <= 0:
+        return 100.0, 0  # fallback
+    
+    # Calculate needed grams to hit target calories
+    base_portion = safe_float(food_row.get("Portion(g)", 100))
+    calories_per_gram = base_calories / base_portion
+    target_grams = target_calories / calories_per_gram
+    
+    # Keep portions reasonable (50g - 400g)
+    target_grams = max(50, min(400, target_grams))
+    actual_calories = target_grams * calories_per_gram
+    
+    return round(target_grams, 1), round(actual_calories, 1)
 
 @app.route("/get_food_recommendations", methods=["POST"])
 def get_food_recommendations():
@@ -537,47 +566,88 @@ def get_food_recommendations():
     except:
         return jsonify({"error": "Invalid or missing weight/height_cm"}), 400
 
-    max_results = int(data.get("max_results", 28))
-    if max_results <= 0:
-        max_results = 28
-    if max_results % 4 != 0:
-        max_results += (4 - max_results % 4)
+    # Get number of days requested (default 7 for weekly meal plan)
+    num_days = int(data.get("days", 7))
+    if num_days <= 0:
+        num_days = 7
 
     bmi = round(weight / ((height_cm / 100) ** 2), 2)
     category, cat_ids = bmi_category(bmi)
-    pool = fel[fel["Category"].isin(cat_ids)]
+    
+    # Use broader food selection for variety
+    pool = fel.copy()
     if pool.empty:
-        pool = fel
-        log.warning("No BMI category rows; broadened pool.")
+        return jsonify({"error": "No food data available"}), 500
 
-    foods = []
-    meal_cycle = ["breakfast", "lunch", "dinner", "snack"]
+    meal_targets = get_meal_calorie_targets()
+    meal_types = ["breakfast", "lunch", "dinner", "snack"]
+    recommendations = []
+    
+    total_target_calories = sum(meal_targets.values()) * num_days
 
-    while len(foods) < max_results:
-        batch = pool.sample(
-            n=min(len(pool), max_results - len(foods)),
-            replace=len(pool) < (max_results - len(foods))
-        )
-        for _, row in batch.iterrows():
-            idx = len(foods)
-            food_name = str(row.get("Food_raw", "unknown"))
-            grams = safe_float(row.get("Portion(g)", 100))
-            item = unified_lookup(food_name, grams)
-            item["MealType"] = meal_cycle[idx % 4]
-            item["DayIndex"] = idx // 4
-            foods.append(item)
-        if len(foods) >= max_results:
-            break
+    # Generate meals for each day
+    for day in range(num_days):
+        daily_recommendations = []
+        daily_actual_calories = 0
+        
+        for meal_type in meal_types:
+            target_calories = meal_targets[meal_type]
+            
+            # Sample a random food from the pool
+            sampled_food = pool.sample(n=1).iloc[0]
+            food_name = str(sampled_food.get("Food_raw", "unknown"))
+            
+            # Calculate appropriate portion for target calories
+            portion_grams, actual_calories = find_appropriate_portion(sampled_food, target_calories)
+            
+            # Get full nutritional info using the calculated portion
+            item = unified_lookup(food_name, portion_grams)
+            
+            # Add meal planning metadata
+            item.update({
+                "MealType": meal_type,
+                "DayIndex": day,
+                "TargetCalories": target_calories,
+                "ActualCalories": actual_calories,
+                "RecommendedPortion": f"{portion_grams}g"
+            })
+            
+            daily_recommendations.append(item)
+            daily_actual_calories += actual_calories
+        
+        # Add daily summary
+        daily_summary = {
+            "Day": day + 1,
+            "TotalCalories": round(daily_actual_calories, 1),
+            "TargetCalories": sum(meal_targets.values()),
+            "CalorieVariance": round(daily_actual_calories - sum(meal_targets.values()), 1)
+        }
+        
+        recommendations.extend(daily_recommendations)
 
+    # Calculate totals
+    total_actual_calories = sum(item.get("ActualCalories", item.get("Calories", 0)) for item in recommendations)
+    
     return jsonify({
-        "prompt": "All nutritional calculations use the Philippine FEL database and standards whenever possible. Only use international sources if no FEL entry exists.",
+        "prompt": "All nutritional calculations use the Philippine FEL database and standards whenever possible. Meal portions calculated to target 1500 calories per day.",
         "bmi": bmi,
-        "category": category,
-        "foods": foods,
+        "bmi_category": category,
+        "target_plan": {
+            "daily_target_calories": 1500,
+            "days": num_days,
+            "total_target_calories": 1500 * num_days,
+            "meal_breakdown": meal_targets
+        },
+        "actual_plan": {
+            "total_actual_calories": round(total_actual_calories, 1),
+            "daily_average": round(total_actual_calories / num_days, 1),
+            "variance_from_target": round(total_actual_calories - (1500 * num_days), 1)
+        },
+        "recommendations": recommendations,
         "meta": {
-            "requested": max_results,
-            "returned": len(foods),
-            "days": len(foods) // 4
+            "total_meals": len(recommendations),
+            "days_generated": num_days,
+            "meals_per_day": 4
         }
     })
 

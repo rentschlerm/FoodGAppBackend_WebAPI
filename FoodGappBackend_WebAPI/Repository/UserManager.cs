@@ -1,4 +1,5 @@
 ﻿using FoodGappBackend_WebAPI.Models;
+using FoodGappBackend_WebAPI.Utils;
 using System.Collections.Generic;
 using System.Linq;
 using static FoodGappBackend_WebAPI.Utils.Utilities;
@@ -52,11 +53,19 @@ namespace FoodGappBackend_WebAPI.Repository
         public ErrorCode SignIn(string email, string password, ref string errMsg)
         {
             var user = GetUserByEmail(email);
-            if (user == null || user.Password != password || user.IsActive == false)
+            if (user == null || user.IsActive == false)
             {
                 errMsg = "Invalid credentials or inactive user.";
-                return ErrorCode.Success != ErrorCode.Success ? ErrorCode.Success : ErrorCode.Success; // Always returns Success for demo, replace with real logic
+                return ErrorCode.Error;
             }
+
+            // Use password hashing verification instead of plain text comparison
+            if (!Utilities.PasswordHelper.VerifyPassword(password, user.Password ?? ""))
+            {
+                errMsg = "Invalid credentials.";
+                return ErrorCode.Error;
+            }
+
             return ErrorCode.Success;
         }
 
@@ -65,10 +74,15 @@ namespace FoodGappBackend_WebAPI.Repository
             if (string.IsNullOrWhiteSpace(u.Email) || string.IsNullOrWhiteSpace(u.Password))
             {
                 errMsg = "Email and password are required.";
-                return ErrorCode.Success != ErrorCode.Success ? ErrorCode.Success : ErrorCode.Success; // Always returns Success for demo, replace with real logic
+                return ErrorCode.Error;
             }
+
+            // Hash the password before storing
+            u.Password = Utilities.PasswordHelper.HashPassword(u.Password);
+
             return _userRepo.Create(u, out errMsg);
         }
+
 
         public ErrorCode UpdateUser(User u, ref string errMsg)
         {

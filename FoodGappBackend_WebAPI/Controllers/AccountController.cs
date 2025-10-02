@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using static FoodGappBackend_WebAPI.Utils.Utilities;
 using FoodGappBackend_WebAPI.Models.CustomModels;
+using FoodGappBackend_WebAPI.Utils;
 
 namespace FoodGappBackend_WebAPI.Controllers
 {
@@ -79,12 +80,19 @@ namespace FoodGappBackend_WebAPI.Controllers
         }
 
         [HttpPost("register")]
-        public IActionResult Register([FromBody] User user)
+        public IActionResult Register([FromBody] BasicRegistration registration)
         {
             try
             {
-                user.UserLevel ??= 1;
-                user.UserCurrentExperience ??= 0;
+                // Create user with only email and password
+                var user = new User
+                {
+                    Email = registration.Email,
+                    Password = registration.Password,
+                    UserLevel = 1,
+                    UserCurrentExperience = 0,
+                    IsActive = true
+                };
 
                 if (_userMgr.CreateAccount(user, ref ErrorMessage) == ErrorCode.Success)
                 {
@@ -103,7 +111,7 @@ namespace FoodGappBackend_WebAPI.Controllers
 
                     if (_userRoleRepo.Create(userRole, out ErrorMessage) == ErrorCode.Success)
                     {
-                        return Ok(new { message = "Registration successful" });
+                        return Ok(new { message = "Registration successful", userId = user.UserId });
                     }
 
                     return BadRequest(new { error = "Failed to assign user role", details = ErrorMessage });
@@ -117,14 +125,12 @@ namespace FoodGappBackend_WebAPI.Controllers
             }
         }
 
-        // At the top of the file, you can optionally add an enum for clarity
-        public enum GenderEnum
+        // Add this class at the bottom of the file
+        public class BasicRegistration
         {
-            Male = 0,
-            Female = 1,
-            Others = 2
+            public required string Email { get; set; }
+            public required string Password { get; set; }
         }
-
         [HttpPost("updateAccount")]
         public IActionResult UpdateUserAccount([FromBody] User user)
         {
@@ -218,14 +224,14 @@ namespace FoodGappBackend_WebAPI.Controllers
                 return BadRequest(new { error = "User not found" });
             }
 
-            // Verify current password
-            if (_userMgr.SignIn(existingUser.Email ?? string.Empty, request.CurrentPassword, ref ErrorMessage) != ErrorCode.Success)
+            // Verify current password using hash verification
+            if (!Utilities.PasswordHelper.VerifyPassword(request.CurrentPassword, existingUser.Password ?? ""))
             {
                 return BadRequest(new { error = "Current password is incorrect" });
             }
 
-            // Update password (hash if needed)
-            existingUser.Password = request.NewPassword;
+            // Hash the new password before storing
+            existingUser.Password = Utilities.PasswordHelper.HashPassword(request.NewPassword);
 
             if (_userMgr.UpdateUser(existingUser, ref ErrorMessage) != ErrorCode.Success)
             {
@@ -292,16 +298,31 @@ namespace FoodGappBackend_WebAPI.Controllers
                 return BadRequest(new { error = "User is not authenticated" });
             }
 
-            user.UserId = UserId;
-            user.UserLevel ??= 1;
-            user.UserCurrentExperience ??= 0;
-
-            if (_userMgr.CreateAccount(user, ref ErrorMessage) != ErrorCode.Success)
+            // Get the existing user that was created during registration
+            var existingUser = _userMgr.GetUserById(UserId);
+            if (existingUser == null)
             {
-                return BadRequest(new { error = "User info creation failed", details = ErrorMessage });
+                return BadRequest(new { error = "User not found" });
             }
 
-            return Ok(new { message = "User created successfully" });
+            // Update the existing user with profile information
+            existingUser.FirstName = user.FirstName;
+            existingUser.LastName = user.LastName;
+            existingUser.Age = user.Age;
+            existingUser.Weight = user.Weight;
+            existingUser.Height = user.Height;
+            existingUser.BodyGoalId = user.BodyGoalId;
+            existingUser.Gender = user.Gender; // Handle gender field
+            existingUser.UserLevel ??= 1;
+            existingUser.UserCurrentExperience ??= 0;
+
+            // Use UpdateUser instead of CreateAccount
+            if (_userMgr.UpdateUser(existingUser, ref ErrorMessage) != ErrorCode.Success)
+            {
+                return BadRequest(new { error = "User profile update failed", details = ErrorMessage });
+            }
+
+            return Ok(new { message = "User profile created successfully" });
         }
 
         [HttpPost("add-experience")]
