@@ -1048,34 +1048,31 @@ def api_describe_image():
     if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
-    upload_dir = "uploads"
-    os.makedirs(upload_dir, exist_ok=True)
-    file_path = os.path.join(upload_dir, file.filename)
-    file.save(file_path)
-
     try:
-        # Detect MIME type dynamically
-        mime_type, _ = mimetypes.guess_type(file_path)
-        if not mime_type:
-            mime_type = "image/jpeg"
+        import base64
 
-        uploaded_file = genai.upload_file(file_path, mime_type=mime_type)
+        # Read file and encode as base64
+        file_data = file.read()
+        img_data = base64.b64encode(file_data).decode()
 
-        # Use safer, simpler prompt
         prompt = (
             "Identify the food in this image. Respond only in the format: Food Name - Category. "
             "If it is not food, respond: No food detected."
         )
 
-        model = genai.GenerativeModel("gemini-2.5-flash")  # or "gemini-1.5-flash" if you want
-        result = model.generate_content([uploaded_file, "\n\n", prompt])
+        model = genai.GenerativeModel("gemini-2.5-flash")
 
+        image_part = {
+            "mime_type": "image/jpeg",
+            "data": img_data
+        }
+
+        result = model.generate_content([prompt, image_part])
         return jsonify({"description": result.text})
 
     except Exception as e:
         log.exception("Error in /describe_image")
         return jsonify({"error": str(e)}), 500
-
 
 # -------------------------------------------------------------------
 # Errors
