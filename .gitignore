@@ -11,6 +11,6 @@ obj/
 .vs/
 
 # Ignore database files & logs
-Data/
-*.db
-*.log
+#Data/
+#*.db
+#*.log
