@@ -18,19 +18,7 @@ builder.Services.AddDbContext<FoodGappDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection"),
         new MySqlServerVersion(new Version(8, 0, 36))
     ));
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<FoodGappDbContext>();
-    try
-    {
-        db.Database.CanConnect();
-        Console.WriteLine("Connected to Railway MySQL successfully!");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"DB Connection failed: {ex.Message}");
-    }
-}
+
 
 builder.Services.AddAuthentication(
     CookieAuthenticationDefaults.AuthenticationScheme
@@ -76,7 +64,19 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<FoodGappDbContext>();
+    try
+    {
+        db.Database.CanConnect();
+        Console.WriteLine("Connected to Railway MySQL successfully!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"DB Connection failed: {ex.Message}");
+    }
+}
 //app.MapControllerRoute();
 
 app.Run();
