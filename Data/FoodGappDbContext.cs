@@ -36,13 +36,28 @@ public partial class FoodGappDbContext : DbContext
 
 	public virtual DbSet<UserRole> UserRoles { get; set; }
 
+	//	protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+	//	{
+	//#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
+	//		//=> optionsBuilder.UseSqlServer("Server=LAPTOP-1GERCPHB\\SQLEXPRESS;Database=FoodGAppDB;Trusted_Connection=True;Integrated Security=True;TrustServerCertificate=True");
+	//		if (!optionsBuilder.IsConfigured)
+	//		{
+	//			// leave empty so Program.cs controls the configuration
+	//		}
+	//	}
 	protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 	{
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-		//=> optionsBuilder.UseSqlServer("Server=LAPTOP-1GERCPHB\\SQLEXPRESS;Database=FoodGAppDB;Trusted_Connection=True;Integrated Security=True;TrustServerCertificate=True");
 		if (!optionsBuilder.IsConfigured)
 		{
-			// leave empty so Program.cs controls the configuration
+			// Get connection string from environment variable (Railway provides this)
+			var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
+				?? Environment.GetEnvironmentVariable("DefaultConnection")
+				?? "Server=ballast.proxy.rlwy.net;Port=27006;Database=railway;User=root;Password=iGhQhsUlNAZuFEdbikZmeXybbxsTkkHJ;"; // fallback for local dev
+
+			optionsBuilder.UseMySql(
+				connectionString,
+				new MySqlServerVersion(new Version(8, 0, 36))
+			);
 		}
 	}
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
