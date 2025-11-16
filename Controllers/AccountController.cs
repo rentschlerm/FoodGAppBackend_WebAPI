@@ -284,7 +284,7 @@ namespace FoodGappBackend_WebAPI.Controllers
                     Password = registration.Password,
                     UserLevel = 1,
                     UserCurrentExperience = 0,
-                    IsActive = true
+                    IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 };
 
