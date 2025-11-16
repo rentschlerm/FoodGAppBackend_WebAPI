@@ -285,6 +285,7 @@ namespace FoodGappBackend_WebAPI.Controllers
                     UserLevel = 1,
                     UserCurrentExperience = 0,
                     IsActive = true
+                    CreatedAt = DateTime.UtcNow
                 };
 
                 if (_userMgr.CreateAccount(user, ref ErrorMessage) == ErrorCode.Success)
