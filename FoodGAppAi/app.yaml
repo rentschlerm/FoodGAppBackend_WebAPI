@@ -11,6 +11,7 @@ automatic_scaling:
 env_variables:
   FLASK_ENV: "production"
   SECRET_KEY: "AIzaSyCnrTpxE-n-Z1TJ2aWB7KUTTsUsa7Z4hGE"
+  # SECRET_KEY: "AIzaSyBy247uw4ArSKtNL48luMJynjVtL_ZjrI4"
 
 handlers:
   - url: /static
