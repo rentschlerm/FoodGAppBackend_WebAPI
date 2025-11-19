@@ -84,7 +84,7 @@ namespace FoodGappBackend_WebAPI.Controllers
                         email = user.Email,
                         role = roleName,
                         status = user.IsActive == true ? "Active" : "Inactive",
-                        dateCreated = "N/A",
+                            dateCreated = user.CreatedAt.HasValue ? user.CreatedAt.Value.ToString("yyyy-MM-dd HH:mm:ss") : "N/A",
                         firstName = user.FirstName,
                         lastName = user.LastName,
                         isActive = user.IsActive ?? false
@@ -211,7 +211,7 @@ namespace FoodGappBackend_WebAPI.Controllers
                     role = roleName,
                     status = user.IsActive == true ? "Active" : "Inactive",
                     isActive = user.IsActive ?? false,
-                    dateCreated = "N/A",
+                        dateCreated = user.CreatedAt.HasValue ? user.CreatedAt.Value.ToString("yyyy-MM-dd HH:mm:ss") : "N/A",
                     age = user.Age,
                     weight = user.Weight,
                     height = user.Height,

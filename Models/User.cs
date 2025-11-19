@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace FoodGappBackend_WebAPI.Models;
@@ -30,6 +30,8 @@ public partial class User
     public int? UserLevel { get; set; }
 
     public int? Gender { get; set; }
+
+    public DateTime? CreatedAt { get; set; }
 
     public virtual BodyGoal? BodyGoal { get; set; }
 
