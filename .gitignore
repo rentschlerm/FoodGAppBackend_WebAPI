@@ -14,3 +14,15 @@ obj/
 #Data/
 #*.db
 #*.log
+
+# Ignore environment files with sensitive data
+.env
+*.env
+.env.local
+.env.development
+.env.production
+FoodGAppAi/.env
+
+# Ignore sensitive config files
+appsettings.Development.json
+appsettings.Production.json

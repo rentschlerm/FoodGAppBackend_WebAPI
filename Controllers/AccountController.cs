@@ -1,4 +1,4 @@
-﻿using FoodGappBackend_WebAPI.Models;
+using FoodGappBackend_WebAPI.Models;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
@@ -706,6 +706,7 @@ namespace FoodGappBackend_WebAPI.Controllers
                     userLevel = user.UserLevel ?? 1,
                     userCurrentExperience = user.UserCurrentExperience ?? 0,
                     experienceToNextLevel = _userMgr.GetExperienceToNextLevel(user)
+                    createdAt = user.CreatedAt
                 }
             });
         }
