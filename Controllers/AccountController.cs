@@ -705,7 +705,7 @@ namespace FoodGappBackend_WebAPI.Controllers
                     bodyGoalId = user.BodyGoalId,
                     userLevel = user.UserLevel ?? 1,
                     userCurrentExperience = user.UserCurrentExperience ?? 0,
-                    experienceToNextLevel = _userMgr.GetExperienceToNextLevel(user)
+                    experienceToNextLevel = _userMgr.GetExperienceToNextLevel(user),
                     createdAt = user.CreatedAt
                 }
             });
